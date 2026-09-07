@@ -1,9 +1,8 @@
-<html lang="en">
+<html lang="zh-Hant">
 <head>
-<base target="_top">
 <meta charset="UTF-8">
-<title>Coconut English Scheduling</title>
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新版呈現方式模擬:固定課表 + 學生姓名比對</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -12,952 +11,385 @@
     background: #f5f6f7;
     color: #222;
   }
-  #bootStatus {
-    text-align: center;
-    padding: 60px 16px;
-    color: #888;
-    font-size: 14px;
+
+  #banner {
+    background: #fff3cd;
+    border-bottom: 2px solid #f0d98c;
+    color: #6b5900;
+    padding: 12px 16px;
+    font-size: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
   }
+  #banner b { display:block; font-size: 13px; margin-bottom: 2px; }
 
-  /* ===================== Teacher view ===================== */
-  #teacherRoot { display: none; padding-bottom: 90px; }
+  .page { max-width: 720px; margin: 0 auto; padding: 16px 16px 60px; }
 
-  #teacherRoot header {
-    background: #06C755;
-    color: #fff;
-    padding: 16px;
-    text-align: center;
-  }
-  #teacherRoot header h1 { margin: 0; font-size: 17px; }
-  #teacherRoot header p { margin: 4px 0 0; font-size: 12px; opacity: .9; }
-
-  #t_profileBar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
+  .card {
     background: #fff;
-    border-bottom: 1px solid #e0e0e0;
+    border-radius: 14px;
+    padding: 18px 18px 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
   }
-  #t_profileBar img { width: 32px; height: 32px; border-radius: 50%; }
-  #t_profileBar span { font-size: 14px; font-weight: 600; }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .card .sub { margin: 0 0 14px; font-size: 12px; color: #888; line-height: 1.5; }
 
-  #t_status { text-align: center; padding: 40px 16px; color: #888; font-size: 14px; }
-
-  #t_dateRow {
-    display: flex;
-    overflow-x: auto;
-    gap: 8px;
-    padding: 12px;
-    background: #fff;
-    border-bottom: 1px solid #e0e0e0;
-    -webkit-overflow-scrolling: touch;
-  }
-  .dateChip {
-    flex: 0 0 auto;
-    padding: 8px 10px;
-    border-radius: 10px;
+  .dayTabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .dayTab {
+    flex: 1 1 auto;
+    min-width: 40px;
+    padding: 8px 4px;
+    border-radius: 8px;
     border: 1px solid #e0e0e0;
     background: #f5f6f7;
     font-size: 12px;
     text-align: center;
-    min-width: 52px;
     cursor: pointer;
   }
-  .dateChip .w { display:block; font-size: 11px; color: #888; }
-  .dateChip .d { display:block; font-size: 15px; font-weight: 700; margin-top:2px; }
-  .dateChip.active { background: #06C755; border-color: #06C755; color: #fff; }
-  .dateChip.active .w { color: rgba(255,255,255,.85); }
-  .dateChip .count { display:block; font-size: 10px; margin-top: 2px; color: #06C755; }
-  .dateChip.active .count { color: #fff; }
+  .dayTab .cnt { display:block; font-size: 10px; color: #06913c; margin-top:2px; }
+  .dayTab.active { background: #222; border-color: #222; color: #fff; }
+  .dayTab.active .cnt { color: #9be7c4; }
+  .dayTab.hasSlots:not(.active) { border-color: #06C755; }
 
-  #t_legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 0 16px 8px;
-    font-size: 11px;
-    color: #666;
-  }
-  #t_legend span { display: inline-flex; align-items: center; gap: 4px; }
-  .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-
-  #t_slotArea { padding: 16px; }
-  #t_slotArea h2 { font-size: 14px; margin: 0 0 10px; color: #555; }
-  .slotGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .slotGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 4px; }
   .slotBtn {
-    padding: 10px 4px;
+    padding: 9px 4px;
     border-radius: 8px;
     border: 1px solid #e0e0e0;
     background: #fff;
-    font-size: 13px;
+    font-size: 12px;
     text-align: center;
     cursor: pointer;
     user-select: none;
+    line-height: 1.3;
   }
-  .slotBtn.selected { background: #06C755; border-color: #06C755; color: #fff; font-weight: 700; }
-  .slotBtn.busy { background: #d9dbe0; border-color: #d9dbe0; color: #888; cursor: not-allowed; }
-  .slotBtn.busy.mine { background: #4a7dff; border-color: #4a7dff; color: #fff; }
-  .slotBtn small { display: block; font-size: 10px; margin-top: 2px; }
+  .slotBtn small { display:block; font-size: 9px; margin-top: 2px; }
+  .slotBtn.weekly { background: #06C755; border-color: #06C755; color: #fff; font-weight: 700; }
+  .slotBtn.booked { background: #2e7dfa; border-color: #2e7dfa; color: #fff; font-weight: 700; cursor: default; }
 
-  #t_footer {
-    text-align: center;
-    padding: 16px;
-    font-size: 10px;
-    color: #bbb;
+  .saveBtn {
+    background: #06C755; color: #fff; border: none; border-radius: 10px;
+    padding: 10px 22px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 6px;
   }
 
-  #t_submitBar {
-    position: fixed;
-    left: 0; right: 0; bottom: 0;
-    background: #fff;
-    border-top: 1px solid #e0e0e0;
-    padding: 12px 16px;
+  .legendRow { display:flex; flex-wrap:wrap; gap: 12px; font-size: 11px; color: #666; margin-top: 12px; }
+  .legendRow span { display:inline-flex; align-items:center; gap:5px; }
+  .dot { width: 10px; height: 10px; border-radius: 3px; display:inline-block; }
+
+  .noteBox {
+    font-size: 11px; color: #666; background: #f5f6f7; border-radius: 10px;
+    padding: 10px 14px; margin-top: 14px; line-height: 1.6;
+  }
+
+  /* ---------- Admin: folder tabs ---------- */
+  .adminNote { font-size: 12px; color:#666; margin-bottom: 14px; line-height:1.6; }
+  .chip { display:inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; white-space:nowrap; margin: 2px 2px 0 0; }
+  .chip.booked { background:#e8effe; color:#2554d1; border:1px solid #c3d3fb; }
+  .chip.open { background:#e6f9ee; color:#06913c; border:1px solid #b8ecd0; }
+
+  .folderTabs {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 0 2px;
+    -webkit-overflow-scrolling: touch;
   }
-  #t_submitBar .summary { font-size: 12px; color: #666; }
-  #t_submitBtn {
-    background: #06C755;
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    padding: 12px 20px;
-    font-size: 15px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-  #t_submitBtn:disabled { background: #bbb; }
-
-  #t_toast {
-    position: fixed;
-    left: 50%; bottom: 90px;
-    transform: translateX(-50%);
-    background: #333;
-    color: #fff;
-    padding: 10px 16px;
-    border-radius: 8px;
-    font-size: 13px;
-    opacity: 0;
-    transition: opacity .25s;
-    pointer-events: none;
-    white-space: nowrap;
-  }
-  #t_toast.show { opacity: 1; }
-
-  /* ===================== Admin view ===================== */
-  #adminRoot { display: none; }
-
-  #adminRoot .adminHeader {
-    background: #222;
-    color: #fff;
-    padding: 16px 20px;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  #adminRoot .adminHeader h1 { margin: 0; font-size: 18px; }
-  #adminRoot .adminHeader p { margin: 4px 0 0; font-size: 12px; color: #bbb; }
-  #a_langBtn {
+  .folderTab {
     flex: 0 0 auto;
-    background: #444;
-    color: #fff;
-    border: 1px solid #666;
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 12px;
-    cursor: pointer;
-  }
-
-  .adminContainer { padding: 16px 20px 60px; max-width: 1100px; margin: 0 auto; }
-
-  .adminToolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    background: #fff;
-    padding: 12px 16px;
-    border-radius: 10px;
-    margin-bottom: 14px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.06);
-  }
-  .adminToolbar label { font-size: 12px; color: #666; }
-  .adminToolbar input[type=date] { padding: 6px; border: 1px solid #ddd; border-radius: 6px; }
-
-  .adminTabs { display: flex; gap: 8px; margin-bottom: 14px; }
-  .tabBtn {
-    background: #fff;
-    border: 1px solid #ddd;
-    color: #555;
-    border-radius: 8px;
-    padding: 8px 16px;
+    padding: 10px 16px 9px;
+    border-radius: 10px 10px 0 0;
+    background: #eceef0;
+    color: #777;
     font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
-  }
-  .tabBtn.active { background: #222; color: #fff; border-color: #222; font-weight: 700; }
-
-  .copyIdBtn {
-    background: #f5f6f7;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 2px 8px;
-    font-size: 11px;
-    cursor: pointer;
-    margin-left: 6px;
-  }
-
-  .btn {
-    background: #06C755;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 18px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  #a_legend { display:flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: #666; margin-bottom: 12px; }
-  #a_legend span { display: inline-flex; align-items: center; gap: 5px; }
-
-  .tableWrap { overflow-x: auto; border-radius: 10px; }
-  #a_overviewTable, #a_teachersTable { border-collapse: collapse; width: 100%; background: #fff; border-radius: 10px; overflow: hidden; }
-  #a_overviewTable th, #a_overviewTable td,
-  #a_teachersTable th, #a_teachersTable td { border: 1px solid #eee; padding: 8px; vertical-align: top; font-size: 12px; }
-  #a_overviewTable th, #a_teachersTable th { background: #fafafa; text-align: left; position: sticky; top: 0; }
-  .teacherCell { font-weight: 700; white-space: nowrap; background: #fafafa; }
-
-  .chip {
-    display: inline-block;
-    padding: 2px 6px;
-    border-radius: 6px;
-    font-size: 11px;
-    margin: 2px 2px 0 0;
     white-space: nowrap;
+    border: 1px solid #e0e0e0;
+    border-bottom: none;
+    position: relative;
+    top: 1px;
   }
-  .chip.free { background: #e6f9ee; color: #06913c; border: 1px solid #b8ecd0; }
-  .chip.busyMine { background: #e8effe; color: #2554d1; border: 1px solid #c3d3fb; }
-
-  #a_unmatchedPanel {
-    margin-top: 20px;
-    background: #fff9e6;
-    border: 1px solid #f0d98c;
+  .folderTab .cnt {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
     border-radius: 10px;
-    padding: 12px 16px;
-    font-size: 12px;
-    color: #6b5900;
+    background: #dfe3e6;
+    color: #888;
   }
-  #a_unmatchedPanel h3 { margin: 0 0 8px; font-size: 13px; }
+  .folderTab.active {
+    background: #fff;
+    color: #222;
+    border-color: #06C755;
+    box-shadow: 0 -2px 0 #06C755 inset;
+  }
+  .folderTab.active .cnt { background: #e6f9ee; color: #06913c; }
 
-  #a_status { text-align: center; color: #888; padding: 30px; font-size: 13px; }
-  .empty { color: #ccc; font-size: 11px; }
+  .folderPanel {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 0 10px 10px 10px;
+    padding: 16px;
+  }
+  .folderPanel .panelTitle { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+  .folderPanel .panelSub { font-size: 12px; color: #888; margin: 0 0 14px; }
+
+  .openDayRow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid #f2f2f2; }
+  .openDayRow:first-of-type { border-top: none; }
+  .openDayRow .dName { flex: 0 0 44px; font-size: 12px; font-weight: 700; color: #555; padding-top: 4px; }
+  .openDayRow .dChips { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; }
+  .openDayRow .dNone { font-size: 11px; color: #ccc; padding-top: 4px; }
+
+  .emptyState { text-align: center; color: #999; font-size: 12px; padding: 24px 10px; }
+
+  #toast {
+    position: fixed; left:50%; bottom: 24px; transform: translateX(-50%);
+    background:#333; color:#fff; padding:10px 16px; border-radius:8px; font-size:13px;
+    opacity:0; transition: opacity .25s; pointer-events:none; white-space:nowrap; max-width: 90%; text-align:center;
+  }
+  #toast.show { opacity: 1; }
 </style>
 </head>
 <body>
 
-<div id="bootStatus">Connecting to LINE...</div>
-
-<!-- ===================== Teacher view ===================== -->
-<div id="teacherRoot">
-  <header>
-    <h1>Teacher Availability</h1>
-    <p>Select the time slots you're available to teach. Green = you're available, blue = you already have a class booked.</p>
-  </header>
-
-  <div id="t_profileBar" style="display:none;">
-    <img id="t_avatar" src="" alt="">
-    <span id="t_displayName"></span>
-  </div>
-
-  <div id="t_status">Loading your schedule...</div>
-
-  <div id="t_app" style="display:none;">
-    <div id="t_dateRow"></div>
-    <div id="t_legend">
-      <span><i class="dot" style="background:#fff;border:1px solid #e0e0e0;"></i>Not selected</span>
-      <span><i class="dot" style="background:#06C755;"></i>I'm available</span>
-      <span><i class="dot" style="background:#4a7dff;"></i>I have a class booked</span>
-      <span><i class="dot" style="background:#d9dbe0;"></i>Already booked (unavailable)</span>
-    </div>
-    <div id="t_slotArea">
-      <h2 id="t_slotAreaTitle"></h2>
-      <div class="slotGrid" id="t_slotGrid"></div>
-    </div>
-    <div id="t_footer"></div>
-  </div>
-
-  <div id="t_submitBar" style="display:none;">
-    <div class="summary" id="t_summary">No time slots selected yet</div>
-    <button id="t_submitBtn">Submit</button>
-  </div>
-
-  <div id="t_toast"></div>
+<div id="banner">
+  <b>🔎 設計提案模擬 v2:固定課表 + 自動帶入學生姓名(已依你的回饋拿掉「近期異動」)</b>
+  因為老師大多是固定時間、固定學生,系統改成:老師只設定一次「每週固定課表」,
+  跟 Google 行事曆比對後,已經有預約學生的時段會直接顯示學生姓名。
 </div>
 
-<!-- ===================== Admin view ===================== -->
-<div id="adminRoot">
-  <div class="adminHeader">
-    <div>
-      <h1 id="a_hTitle"></h1>
-      <p id="a_hSubtitle"></p>
+<div class="page">
+
+  <!-- ================= 老師畫面:我的固定課表 ================= -->
+  <div class="card">
+    <h2>My Weekly Schedule</h2>
+    <p class="sub">These are the times you teach every week. Slots already matched to a booking on the calendar show the student's name automatically.</p>
+
+    <div class="dayTabs" id="dayTabs"></div>
+    <div class="slotGrid" id="templateGrid"></div>
+
+    <div class="legendRow">
+      <span><i class="dot" style="background:#2e7dfa;"></i>Booked (student matched from calendar)</span>
+      <span><i class="dot" style="background:#06C755;"></i>My usual time (no student matched yet)</span>
+      <span><i class="dot" style="background:#fff;border:1px solid #e0e0e0;"></i>Not scheduled</span>
     </div>
-    <button id="a_langBtn"></button>
-  </div>
 
-  <div class="adminContainer">
-    <div id="a_status">Loading...</div>
+    <button class="saveBtn" id="saveTemplateBtn">Save Weekly Schedule</button>
 
-    <div id="a_app" style="display:none;">
-      <div class="adminTabs">
-        <button class="tabBtn active" id="a_tabSchedule"></button>
-        <button class="tabBtn" id="a_tabTeachers"></button>
-      </div>
-
-      <div id="a_scheduleView">
-        <div class="adminToolbar">
-          <label id="a_lblStart"></label> <input type="date" id="a_startDate">
-          <label id="a_lblEnd"></label> <input type="date" id="a_endDate">
-          <button class="btn" id="a_refreshBtn"></button>
-          <span id="a_lastUpdated" style="font-size:11px;color:#999;"></span>
-        </div>
-
-        <div id="a_legend">
-          <span><i class="dot" style="background:#e6f9ee;border:1px solid #b8ecd0;"></i><span id="a_legFree"></span></span>
-          <span><i class="dot" style="background:#e8effe;border:1px solid #c3d3fb;"></i><span id="a_legBusy"></span></span>
-        </div>
-
-        <div class="tableWrap" id="a_tableWrap" style="display:none;">
-          <table id="a_overviewTable"></table>
-        </div>
-
-        <div id="a_unmatchedPanel" style="display:none;"></div>
-      </div>
-
-      <div id="a_teachersView" style="display:none;">
-        <div class="adminToolbar">
-          <button class="btn" id="a_teachersRefreshBtn"></button>
-          <span id="a_teachersCount" style="font-size:11px;color:#999;"></span>
-        </div>
-        <div class="tableWrap">
-          <table id="a_teachersTable"></table>
-        </div>
-      </div>
+    <div class="noteBox">
+      這一版拿掉了「近期異動」的區塊——因為機率不高,如果老師哪天臨時請假或調課,
+      建議還是直接在 LINE 跟你反映,你再手動去 Google 行事曆調整那一天的事件即可,
+      不需要為了少數情況把系統弄複雜。這個畫面只保留「每週固定會怎麼上課」這件事。
     </div>
   </div>
+
+  <!-- ================= 管理後台看到的效果(示意) ================= -->
+  <div class="card">
+    <h2>管理後台會看到的效果(示意)</h2>
+    <p class="adminNote">
+      改成「資料夾標籤」的形式——上面一排是老師的名字,每個都是獨立的標籤,點開才會看到那位老師的行程,
+      不會像之前那樣所有老師擠在同一張表格裡。而且點開後<b style="color:#06913c;">只顯示這位老師目前還有空、可以安排新學生的時段</b>,
+      已經有學生的時段不會列出來,你要找空檔給新學生時一眼就能看完。
+    </p>
+    <div class="folderTabs" id="folderTabs"></div>
+    <div class="folderPanel" id="folderPanel"></div>
+  </div>
+
 </div>
+
+<div id="toast"></div>
 
 <script>
   // ==========================================================
-  // Shared bootstrap: one LIFF login, then route by role
+  // 假資料 / 邏輯(純示意,不代表最終程式碼寫法)
+  //
+  // 概念:TEMPLATE 存老師每個星期幾固定會上課的時段;
+  // 每個時段如果曾經比對到 Google 行事曆上的事件,就會帶上 student 姓名
+  // (比對方式比照現有系統:事件標題/描述裡有出現學生姓名 → 判定是這個時段的學生)。
+  // 沒有 student 的時段,代表老師自己勾選「這個時間我平常有空」,但還沒配對到學生。
   // ==========================================================
-  const LIFF_ID = <?!= JSON.stringify(liffId) ?>;
-  const CONFIG = <?!= JSON.stringify(config) ?>;
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
-  function boot() {
-    let idToken = null;
-    let profile = null;
+  const DAY_KEYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-    liff.init({ liffId: LIFF_ID }).then(function () {
-      if (!liff.isLoggedIn()) {
-        liff.login();
-        return;
-      }
-      idToken = liff.getIDToken();
-      return liff.getProfile();
-    }).then(function (p) {
-      if (!p) return; // redirecting to login
-      profile = p;
+  function slotList() {
+    const out = [];
+    for (let m = 9 * 60; m < 21 * 60; m += 30) out.push(m);
+    return out;
+  }
+  function hhmm(m) { return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
+  function label(m) { return hhmm(m) + '-' + hhmm(m + 30); }
 
-      google.script.run
-        .withSuccessHandler(function (role) {
-          document.getElementById('bootStatus').style.display = 'none';
-          if (role && role.ok && role.isAdmin) {
-            document.getElementById('adminRoot').style.display = 'block';
-            AdminApp.init(idToken);
-          } else {
-            document.getElementById('teacherRoot').style.display = 'block';
-            TeacherApp.init(idToken, profile, role);
-          }
-        })
-        .withFailureHandler(function (err) {
-          document.getElementById('bootStatus').textContent = 'Failed to check permissions: ' + err.message;
-        })
-        .getMyRole(idToken);
-    }).catch(function (err) {
-      document.getElementById('bootStatus').textContent = 'LINE login failed: ' + err;
+  // 老師的固定課表:星期幾 -> [{ start: 分鐘數, student: 學生姓名或 null }]
+  const TEMPLATE = {
+    Mon: [{ start: 14 * 60, student: 'Wayne' }],
+    Tue: [],
+    Wed: [{ start: 14 * 60, student: 'Irene' }, { start: 14 * 60 + 30, student: null }],
+    Thu: [],
+    Fri: [{ start: 16 * 60, student: 'Chris' }],
+    Sat: [],
+    Sun: [],
+  };
+
+  // ---------------- 固定課表編輯器 ----------------
+  let activeDay = 'Mon';
+
+  function findSlot(day, m) {
+    return TEMPLATE[day].find(function (s) { return s.start === m; });
+  }
+
+  function renderDayTabs() {
+    const wrap = document.getElementById('dayTabs');
+    wrap.innerHTML = '';
+    DAY_KEYS.forEach(function (k) {
+      const btn = document.createElement('div');
+      const cnt = TEMPLATE[k].length;
+      btn.className = 'dayTab' + (k === activeDay ? ' active' : '') + (cnt > 0 ? ' hasSlots' : '');
+      btn.innerHTML = k + (cnt > 0 ? '<span class="cnt">' + cnt + '</span>' : '');
+      btn.addEventListener('click', function () { activeDay = k; renderDayTabs(); renderTemplateGrid(); });
+      wrap.appendChild(btn);
     });
   }
 
-  boot();
-</script>
+  function renderTemplateGrid() {
+    const grid = document.getElementById('templateGrid');
+    grid.innerHTML = '';
+    slotList().forEach(function (m) {
+      const btn = document.createElement('div');
+      btn.className = 'slotBtn';
+      const slot = findSlot(activeDay, m);
 
-<script>
-  // ==========================================================
-  // TeacherApp
-  // ==========================================================
-  var TeacherApp = (function () {
-    let idToken = null;
-    let dates = [];
-    let busyByDate = {};
-    let selected = {};
-    let activeDate = null;
-
-    function pad(n) { return n < 10 ? '0' + n : '' + n; }
-    function toDateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-
-    function buildDateList() {
-      const list = [];
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      const totalDays = CONFIG.WEEKS_AHEAD * 7;
-      for (let i = 0; i < totalDays; i++) {
-        const d = new Date(start.getTime());
-        d.setDate(start.getDate() + i);
-        list.push(d);
-      }
-      return list;
-    }
-
-    function buildSlotsForDay() {
-      const slots = [];
-      const startMin = CONFIG.SLOT_START_HOUR * 60;
-      const endMin = CONFIG.SLOT_END_HOUR * 60;
-      for (let m = startMin; m < endMin; m += CONFIG.SLOT_MINUTES) {
-        slots.push({ startMin: m, endMin: m + CONFIG.SLOT_MINUTES });
-      }
-      return slots;
-    }
-
-    function minToHHMM(m) { return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
-
-    function showToast(msg) {
-      const t = document.getElementById('t_toast');
-      t.textContent = msg;
-      t.classList.add('show');
-      setTimeout(function () { t.classList.remove('show'); }, 2200);
-    }
-
-    function setStatus(msg) { document.getElementById('t_status').textContent = msg; }
-
-    function init(token, profile, role) {
-      idToken = token;
-      document.getElementById('t_avatar').src = profile.pictureUrl || '';
-      document.getElementById('t_displayName').textContent = 'Hi, ' + profile.displayName;
-      document.getElementById('t_profileBar').style.display = 'flex';
-      if (role && role.lineUserId) {
-        document.getElementById('t_footer').textContent = 'LINE ID: ' + role.lineUserId;
-      }
-      loadData();
-    }
-
-    function loadData() {
-      setStatus('Loading your schedule...');
-      dates = buildDateList();
-      const startIso = new Date(dates[0].getTime()).toISOString();
-      const endD = new Date(dates[dates.length - 1].getTime());
-      endD.setDate(endD.getDate() + 1);
-      const endIso = endD.toISOString();
-
-      google.script.run
-        .withSuccessHandler(function (res) {
-          if (!res || !res.ok) {
-            setStatus('Failed to load. Please refresh the page and try again.');
-            return;
-          }
-          selected = {};
-          res.slots.forEach(function (s) {
-            if (!selected[s.date]) selected[s.date] = new Set();
-            selected[s.date].add(s.start + '-' + s.end);
-          });
-          busyByDate = {};
-          res.busy.forEach(function (b) {
-            const bs = new Date(b.start);
-            const be = new Date(b.end);
-            const dateKey = toDateStr(bs);
-            if (!busyByDate[dateKey]) busyByDate[dateKey] = [];
-            busyByDate[dateKey].push({
-              startMin: bs.getHours() * 60 + bs.getMinutes(),
-              endMin: be.getHours() * 60 + be.getMinutes(),
-              isMine: b.isMine,
-            });
-          });
-
-          document.getElementById('t_status').style.display = 'none';
-          document.getElementById('t_app').style.display = 'block';
-          document.getElementById('t_submitBar').style.display = 'flex';
-          renderDateRow();
-          selectDate(toDateStr(dates[0]));
-        })
-        .withFailureHandler(function (err) {
-          setStatus('Failed to load: ' + err.message);
-        })
-        .getMyAvailability(idToken, startIso, endIso);
-    }
-
-    const weekNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    function renderDateRow() {
-      const row = document.getElementById('t_dateRow');
-      row.innerHTML = '';
-      dates.forEach(function (d) {
-        const key = toDateStr(d);
-        const chip = document.createElement('div');
-        chip.className = 'dateChip' + (key === activeDate ? ' active' : '');
-        const count = selected[key] ? selected[key].size : 0;
-        chip.innerHTML =
-          '<span class="w">' + weekNames[d.getDay()] + '</span>' +
-          '<span class="d">' + (d.getMonth() + 1) + '/' + d.getDate() + '</span>' +
-          (count > 0 ? '<span class="count">' + count + ' selected</span>' : '');
-        chip.addEventListener('click', function () { selectDate(key); });
-        row.appendChild(chip);
-      });
-    }
-
-    function selectDate(key) {
-      activeDate = key;
-      renderDateRow();
-      const d = dates.find(function (dd) { return toDateStr(dd) === key; });
-      document.getElementById('t_slotAreaTitle').textContent =
-        'Available time slots for ' + weekNames[d.getDay()] + ', ' + (d.getMonth() + 1) + '/' + d.getDate();
-
-      const grid = document.getElementById('t_slotGrid');
-      grid.innerHTML = '';
-      const slots = buildSlotsForDay();
-      const busyList = busyByDate[key] || [];
-      const mySelected = selected[key] || new Set();
-
-      slots.forEach(function (s) {
-        const label = minToHHMM(s.startMin) + '-' + minToHHMM(s.endMin);
-        const btn = document.createElement('div');
-        btn.className = 'slotBtn';
-
-        const overlap = busyList.find(function (b) {
-          return s.startMin < b.endMin && s.endMin > b.startMin;
+      if (slot && slot.student) {
+        btn.classList.add('booked');
+        btn.innerHTML = label(m) + '<small>with ' + slot.student + '</small>';
+        btn.addEventListener('click', function () {
+          showToast('已比對到 Google 行事曆上的預約(' + slot.student + '),如需調整請直接到行事曆修改這堂課。');
         });
-
-        if (overlap) {
-          btn.classList.add('busy');
-          if (overlap.isMine) {
-            btn.classList.add('mine');
-            btn.innerHTML = label + '<small>Booked</small>';
-          } else {
-            btn.innerHTML = label + '<small>Unavailable</small>';
-          }
-        } else {
-          if (mySelected.has(label)) btn.classList.add('selected');
-          btn.textContent = label;
-          btn.addEventListener('click', function () {
-            if (!selected[key]) selected[key] = new Set();
-            if (selected[key].has(label)) {
-              selected[key].delete(label);
-              btn.classList.remove('selected');
-            } else {
-              selected[key].add(label);
-              btn.classList.add('selected');
-            }
-            updateSummary();
-            renderDateRow();
-          });
-        }
-        grid.appendChild(btn);
-      });
-
-      updateSummary();
-    }
-
-    function updateSummary() {
-      let total = 0;
-      Object.keys(selected).forEach(function (k) { total += selected[k].size; });
-      document.getElementById('t_summary').textContent =
-        total > 0 ? (total + ' time slot' + (total === 1 ? '' : 's') + ' selected') : 'No time slots selected yet';
-    }
-
-    document.getElementById('t_submitBtn').addEventListener('click', function () {
-      const btn = document.getElementById('t_submitBtn');
-      btn.disabled = true;
-      btn.textContent = 'Submitting...';
-
-      const slots = [];
-      Object.keys(selected).forEach(function (date) {
-        selected[date].forEach(function (label) {
-          const parts = label.split('-');
-          slots.push({ date: date, start: parts[0], end: parts[1] });
+      } else if (slot) {
+        btn.classList.add('weekly');
+        btn.innerHTML = label(m) + '<small>Open</small>';
+        btn.addEventListener('click', function () {
+          const idx = TEMPLATE[activeDay].indexOf(slot);
+          TEMPLATE[activeDay].splice(idx, 1);
+          renderDayTabs();
+          renderTemplateGrid();
+          renderFolderTabs();
+          renderFolderPanel();
         });
-      });
-      const clearDates = dates.map(toDateStr);
+      } else {
+        btn.textContent = label(m);
+        btn.addEventListener('click', function () {
+          TEMPLATE[activeDay].push({ start: m, student: null });
+          renderDayTabs();
+          renderTemplateGrid();
+          renderFolderTabs();
+          renderFolderPanel();
+        });
+      }
+      grid.appendChild(btn);
+    });
+  }
 
-      google.script.run
-        .withSuccessHandler(function (res) {
-          btn.disabled = false;
-          btn.textContent = 'Submit';
-          if (res && res.ok) {
-            showToast('Submitted! Thank you.');
-          } else {
-            showToast('Submission failed, please try again.');
-          }
-        })
-        .withFailureHandler(function (err) {
-          btn.disabled = false;
-          btn.textContent = 'Submit';
-          showToast('Submission failed: ' + err.message);
-        })
-        .saveAvailability(idToken, slots, clearDates);
+  document.getElementById('saveTemplateBtn').addEventListener('click', function () {
+    showToast('Weekly schedule saved — this now applies to every future week.');
+  });
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function () { t.classList.remove('show'); }, 2600);
+  }
+
+  // ---------------- 管理後台:老師資料夾標籤 ----------------
+  const OTHER_TEACHERS = {
+    'John Cruz': {
+      Tue: [{ start: 10 * 60, student: 'Kevin' }, { start: 10 * 60 + 30, student: null }],
+      Thu: [{ start: 10 * 60, student: null }],
+    },
+    'Angela Reyes': {
+      Wed: [{ start: 15 * 60, student: 'Tom' }],
+      Fri: [{ start: 9 * 60, student: 'Sophia' }],
+      Sat: [{ start: 10 * 60, student: null }],
+    },
+  };
+
+  const DAY_FULL = { Mon: 'Mon', Tue: 'Tue', Wed: 'Wed', Thu: 'Thu', Fri: 'Fri', Sat: 'Sat', Sun: 'Sun' };
+
+  function allTeachers() {
+    const list = [{ name: 'Maria Santos', data: TEMPLATE }];
+    Object.keys(OTHER_TEACHERS).forEach(function (name) {
+      list.push({ name: name, data: OTHER_TEACHERS[name] });
+    });
+    return list;
+  }
+
+  function openSlotCount(data) {
+    let n = 0;
+    DAY_KEYS.forEach(function (k) { (data[k] || []).forEach(function (s) { if (!s.student) n++; }); });
+    return n;
+  }
+
+  let activeTeacher = 'Maria Santos';
+
+  function renderFolderTabs() {
+    const wrap = document.getElementById('folderTabs');
+    wrap.innerHTML = '';
+    allTeachers().forEach(function (tc) {
+      const tab = document.createElement('div');
+      const cnt = openSlotCount(tc.data);
+      tab.className = 'folderTab' + (tc.name === activeTeacher ? ' active' : '');
+      tab.innerHTML = tc.name + '<span class="cnt">' + cnt + ' open</span>';
+      tab.addEventListener('click', function () {
+        activeTeacher = tc.name;
+        renderFolderTabs();
+        renderFolderPanel();
+      });
+      wrap.appendChild(tab);
+    });
+  }
+
+  function renderFolderPanel() {
+    const panel = document.getElementById('folderPanel');
+    const tc = allTeachers().find(function (x) { return x.name === activeTeacher; });
+    if (!tc) { panel.innerHTML = ''; return; }
+
+    const cnt = openSlotCount(tc.data);
+    let html = '<div class="panelTitle">' + tc.name + '</div>';
+
+    if (cnt === 0) {
+      html += '<div class="panelSub">Currently available times to book a new student</div>';
+      html += '<div class="emptyState">目前所有固定時段都已經有學生,沒有空堂可以安排新學生。</div>';
+      panel.innerHTML = html;
+      return;
+    }
+
+    html += '<div class="panelSub">Currently available times to book a new student — ' + cnt + ' open slot' + (cnt === 1 ? '' : 's') + ' this week</div>';
+
+    DAY_KEYS.forEach(function (k) {
+      const openSlots = (tc.data[k] || [])
+        .filter(function (s) { return !s.student; })
+        .sort(function (a, b) { return a.start - b.start; });
+      if (openSlots.length === 0) return; // 這位老師這天沒有空堂,不用列出來讓畫面更乾淨
+      html += '<div class="openDayRow"><div class="dName">' + DAY_FULL[k] + '</div><div class="dChips">';
+      openSlots.forEach(function (s) {
+        html += '<span class="chip open">' + label(s.start) + '</span>';
+      });
+      html += '</div></div>';
     });
 
-    return { init: init };
-  })();
-</script>
+    panel.innerHTML = html;
+  }
 
-<script>
-  // ==========================================================
-  // AdminApp
-  // ==========================================================
-  var AdminApp = (function () {
-    let idToken = null;
-    let lastResult = null;
-    let lastStartStr = null;
-    let lastEndStr = null;
-    let currentLang = 'zh';
-
-    const LANG = {
-      zh: {
-        title: '老師排課管理後台',
-        subtitle: '查看每位老師可上課時段,並比對 Google 行事曆上已排定的課程',
-        startDate: '開始日期',
-        endDate: '結束日期',
-        refresh: '重新整理',
-        lastUpdated: '更新時間: ',
-        legendFree: '老師回報可上課',
-        legendBusy: '行事曆上已排課(比對到該老師)',
-        statusLoading: '載入中...',
-        loadFailed: '讀取失敗: ',
-        unknownError: '未知錯誤',
-        teacherCol: '老師',
-        noTeachersYet: '目前還沒有老師透過 LIFF 登入過',
-        unmatchedTitle: function (n) { return '行事曆上有 ' + n + ' 筆事件沒有比對到任何老師'; },
-        unmatchedDesc: '可能是活動標題/描述中沒有包含老師姓名。可到 Teachers 工作表調整每位老師的 MatchKeyword 欄位。',
-        noTitlePlaceholder: '(無標題)',
-        langBtn: 'EN',
-        weekNames: ['日', '一', '二', '三', '四', '五', '六'],
-        tabSchedule: '課表總覽',
-        tabTeachers: '老師名單',
-        colName: '姓名',
-        colLineId: 'LINE ID',
-        colKeyword: '比對關鍵字',
-        colFirstSeen: '首次使用',
-        colLastUpdated: '最近使用',
-        copyBtn: '複製',
-        copiedMsg: '已複製!',
-        teachersRefresh: '重新整理',
-        teachersCount: function (n) { return '共 ' + n + ' 位老師'; },
-        noTeachersRoster: '目前還沒有老師打開過排課連結',
-      },
-      en: {
-        title: 'Teacher Scheduling Admin',
-        subtitle: "View every teacher's availability and cross-check it against your Google Calendar",
-        startDate: 'Start date',
-        endDate: 'End date',
-        refresh: 'Refresh',
-        lastUpdated: 'Last updated: ',
-        legendFree: 'Reported available',
-        legendBusy: 'Booked on calendar (matched to teacher)',
-        statusLoading: 'Loading...',
-        loadFailed: 'Failed to load: ',
-        unknownError: 'Unknown error',
-        teacherCol: 'Teacher',
-        noTeachersYet: 'No teacher has logged in via LIFF yet',
-        unmatchedTitle: function (n) { return n + ' calendar event(s) could not be matched to any teacher'; },
-        unmatchedDesc: "The event title/description may not contain the teacher's name. You can adjust each teacher's MatchKeyword in the Teachers sheet.",
-        noTitlePlaceholder: '(no title)',
-        langBtn: '中文',
-        weekNames: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-        tabSchedule: 'Schedule Overview',
-        tabTeachers: 'Teacher Roster',
-        colName: 'Name',
-        colLineId: 'LINE ID',
-        colKeyword: 'Match Keyword',
-        colFirstSeen: 'First seen',
-        colLastUpdated: 'Last active',
-        copyBtn: 'Copy',
-        copiedMsg: 'Copied!',
-        teachersRefresh: 'Refresh',
-        teachersCount: function (n) { return n + ' teacher(s)'; },
-        noTeachersRoster: 'No teacher has opened the scheduling link yet',
-      },
-    };
-
-    function t(key) { return LANG[currentLang][key]; }
-
-    function pad(n) { return n < 10 ? '0' + n : '' + n; }
-    function toDateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-    function fromDateStr(s) {
-      const parts = s.split('-');
-      return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-    }
-
-    function defaultRange() {
-      const start = new Date(); start.setHours(0, 0, 0, 0);
-      const end = new Date(start.getTime());
-      end.setDate(end.getDate() + CONFIG.WEEKS_AHEAD * 7 - 1);
-      return { start: start, end: end };
-    }
-
-    function initDates() {
-      const r = defaultRange();
-      document.getElementById('a_startDate').value = toDateStr(r.start);
-      document.getElementById('a_endDate').value = toDateStr(r.end);
-    }
-
-    function dateRangeList(startStr, endStr) {
-      const list = [];
-      let cur = fromDateStr(startStr);
-      const end = fromDateStr(endStr);
-      while (cur <= end) {
-        list.push(new Date(cur.getTime()));
-        cur.setDate(cur.getDate() + 1);
-      }
-      return list;
-    }
-
-    function mergeRanges(items) {
-      if (!items.length) return [];
-      const sorted = items.slice().sort(function (a, b) { return a.start < b.start ? -1 : 1; });
-      const out = [{ start: sorted[0].start, end: sorted[0].end }];
-      for (let i = 1; i < sorted.length; i++) {
-        const last = out[out.length - 1];
-        if (sorted[i].start <= last.end) {
-          if (sorted[i].end > last.end) last.end = sorted[i].end;
-        } else {
-          out.push({ start: sorted[i].start, end: sorted[i].end });
-        }
-      }
-      return out;
-    }
-
-    function toHHMM(iso) {
-      const d = new Date(iso);
-      return pad(d.getHours()) + ':' + pad(d.getMinutes());
-    }
-
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, function (c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-      });
-    }
-
-    let currentView = 'schedule'; // 'schedule' | 'teachers'
-    let lastTeachers = null;
-
-    function applyStaticText() {
-      document.getElementById('a_hTitle').textContent = t('title');
-      document.getElementById('a_hSubtitle').textContent = t('subtitle');
-      document.getElementById('a_langBtn').textContent = t('langBtn');
-      document.getElementById('a_lblStart').textContent = t('startDate');
-      document.getElementById('a_lblEnd').textContent = t('endDate');
-      document.getElementById('a_refreshBtn').textContent = t('refresh');
-      document.getElementById('a_legFree').textContent = t('legendFree');
-      document.getElementById('a_legBusy').textContent = t('legendBusy');
-      document.getElementById('a_tabSchedule').textContent = t('tabSchedule');
-      document.getElementById('a_tabTeachers').textContent = t('tabTeachers');
-      document.getElementById('a_teachersRefreshBtn').textContent = t('teachersRefresh');
-    }
-
-    document.getElementById('a_langBtn').addEventListener('click', function () {
-      currentLang = currentLang === 'zh' ? 'en' : 'zh';
-      applyStaticText();
-      if (lastResult) render(lastResult, lastStartStr, lastEndStr);
-      if (lastTeachers) renderTeachers(lastTeachers);
-    });
-
-    function showView(view) {
-      currentView = view;
-      document.getElementById('a_scheduleView').style.display = view === 'schedule' ? 'block' : 'none';
-      document.getElementById('a_teachersView').style.display = view === 'teachers' ? 'block' : 'none';
-      document.getElementById('a_tabSchedule').classList.toggle('active', view === 'schedule');
-      document.getElementById('a_tabTeachers').classList.toggle('active', view === 'teachers');
-      if (view === 'teachers' && !lastTeachers) loadTeachers();
-    }
-
-    document.getElementById('a_tabSchedule').addEventListener('click', function () { showView('schedule'); });
-    document.getElementById('a_tabTeachers').addEventListener('click', function () { showView('teachers'); });
-    document.getElementById('a_teachersRefreshBtn').addEventListener('click', loadTeachers);
-
-    function copyToClipboard(text, btn) {
-      const done = function () {
-        const original = btn.textContent;
-        btn.textContent = t('copiedMsg');
-        setTimeout(function () { btn.textContent = original; }, 1500);
-      };
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(done).catch(function () { window.prompt('Copy:', text); });
-      } else {
-        window.prompt('Copy:', text);
-      }
-    }
-
-    function loadTeachers() {
-      document.getElementById('a_teachersTable').innerHTML = '';
-      document.getElementById('a_teachersCount').textContent = t('statusLoading');
-      google.script.run
-        .withSuccessHandler(function (res) {
-          if (!res || !res.ok) {
-            document.getElementById('a_teachersCount').textContent = t('loadFailed') + (res ? res.error : t('unknownError'));
-            return;
-          }
-          lastTeachers = res.teachers;
-          renderTeachers(res.teachers);
-        })
-        .withFailureHandler(function (err) {
-          document.getElementById('a_teachersCount').textContent = t('loadFailed') + err.message;
-        })
-        .getTeacherRoster(idToken);
-    }
-
-    function renderTeachers(teachers) {
-      document.getElementById('a_teachersCount').textContent = t('teachersCount')(teachers.length);
-      const table = document.getElementById('a_teachersTable');
-      let html = '<tr><th>' + t('colName') + '</th><th>' + t('colLineId') + '</th><th>' +
-        t('colKeyword') + '</th><th>' + t('colFirstSeen') + '</th><th>' + t('colLastUpdated') + '</th></tr>';
-      if (teachers.length === 0) {
-        html += '<tr><td colspan="5" class="empty">' + t('noTeachersRoster') + '</td></tr>';
-      }
-      table.innerHTML = html;
-      teachers.forEach(function (tc) {
-        const tr = document.createElement('tr');
-        tr.innerHTML =
-          '<td>' + escapeHtml(tc.name) + '</td>' +
-          '<td style="font-family:monospace;">' + escapeHtml(tc.lineUserId) + '</td>' +
-          '<td>' + escapeHtml(tc.matchKeyword) + '</td>' +
-          '<td>' + (tc.firstSeen ? new Date(tc.firstSeen).toLocaleString() : '-') + '</td>' +
-          '<td>' + (tc.lastUpdated ? new Date(tc.lastUpdated).toLocaleString() : '-') + '</td>';
-        const idCell = tr.children[1];
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'copyIdBtn';
-        copyBtn.textContent = t('copyBtn');
-        copyBtn.addEventListener('click', function () { copyToClipboard(tc.lineUserId, copyBtn); });
-        idCell.appendChild(copyBtn);
-        table.appendChild(tr);
-      });
-    }
-
-    function init(token) {
-      idToken = token;
-      applyStaticText();
-      initDates();
-      load();
-    }
-
-    function load() {
-      document.getElementById('a_status').style.display = 'block';
-      document.getElementById('a_status').textContent = t('statusLoading');
-      document.getElementById('a_app').style.display = 'none';
-
-      const startStr = document.getElementById('a_startDate').value;
-      const endStr = document.getElementById('a_endDate').value;
-      const startIso = fromDateStr(startStr).toISOString();
-      const endExclusive = fromDateStr(endStr);
-      endExclusive.setDate(endExclusive.getDate() + 1);
-      const endIso = endExclusive.toISOString();
-
-      google.script.run
-        .withSuccessHandler(function (res) {
-          if (!res || !res.ok) {
-            document.getElementById('a_status').textContent = t('loadFailed') + (res ? res.error : t('unknownError'));
-            return;
-          }
-          document.getElementById('a_status').style.display = 'none';
-          document.getElementById('a_app').style.display = 'block';
-          render(res, startStr, endStr);
-        })
-        .withFailureHandler(function (err) {
-          document.getElementById('a_status').textContent = t('loadFailed') + err.message;
-        })
-        .getAdminOverview(idToken, startIso, endIso);
-    }
-
-    function render(res, startStr, endStr) {
-      lastResult = res;
-      lastStartStr = startStr;
-      lastEndStr = endStr;
-
-      const dates = dateRangeList(startStr, endStr);
-      const weekNames = t('weekNames');
-
-      const availByTeacherDate = {};
-      res.availability.forEach(function (a) {
-        availByTeacherDate[a.lineUserId] = availByTeacherDate[a.lineUserId] || {};
-        availByTeacherDate[a.lineUserId][a.date] = availByTeacherDate[a.lineUserId][a.date] || [];
-        availByTeacherDate[a.lineUserId][a.date].push({ start: a.start, end: a.end });
-      });
-
-      const busyByTeacherDate = {};
-      const unmatched = [];
-      res.busy.forEach(function (b) {
-        const d = new Date(b.start);
-        const dateKey = toDateStr(d);
-        if (b.matchedTeacher) {
-          busyByTeacherDate[b.matchedTeacher] = busyByTeacherDate[b.matchedTeacher] || {};
-          busyByTeacherDate[b.matchedTeacher][dateKey] = busyByTeacherDate[b.matchedTeacher][dateKey] || [];
-          busyByTeacherDate[b.matchedTeacher][dateKey].push({ start: toHHMM(b.start), end: toHHMM(b.end) });
-        } else {
-          unmatched.push({ date: dateKey, title: b.title, start: toHHMM(b.start), end: toHHMM(b.end) });
-        }
-      });
-
-      const table = document.getElementById('a_overviewTable');
-      let html = '<tr><th>' + t('teacherCol') + '</th>';
-      dates.forEach(function (d) {
-        html += '<th>' + (d.getMonth() + 1) + '/' + d.getDate() + ' (' + weekNames[d.getDay()] + ')</th>';
-      });
-      html += '</tr>';
-
-      if (res.teachers.length === 0) {
-        html += '<tr><td colspan="' + (dates.length + 1) + '" class="empty">' + t('noTeachersYet') + '</td></tr>';
-      }
-
-      res.teachers.forEach(function (tc) {
-        html += '<tr><td class="teacherCell">' + escapeHtml(tc.name) + '</td>';
-        dates.forEach(function (d) {
-          const dateKey = toDateStr(d);
-          const free = mergeRanges((availByTeacherDate[tc.lineUserId] || {})[dateKey] || []);
-          const busy = mergeRanges((busyByTeacherDate[tc.lineUserId] || {})[dateKey] || []);
-          let cell = '';
-          free.forEach(function (r) { cell += '<span class="chip free">' + r.start + '-' + r.end + '</span>'; });
-          busy.forEach(function (r) { cell += '<span class="chip busyMine">' + r.start + '-' + r.end + '</span>'; });
-          if (!cell) cell = '<span class="empty">-</span>';
-          html += '<td>' + cell + '</td>';
-        });
-        html += '</tr>';
-      });
-
-      table.innerHTML = html;
-      document.getElementById('a_tableWrap').style.display = 'block';
-      document.getElementById('a_lastUpdated').textContent = t('lastUpdated') + new Date().toLocaleString();
-
-      const panel = document.getElementById('a_unmatchedPanel');
-      if (unmatched.length) {
-        let uHtml = '<h3>' + escapeHtml(t('unmatchedTitle')(unmatched.length)) + '</h3>' +
-          '<p>' + escapeHtml(t('unmatchedDesc')) + '</p><ul>';
-        unmatched.slice(0, 20).forEach(function (u) {
-          uHtml += '<li>' + u.date + ' ' + u.start + '-' + u.end + ' “' +
-            escapeHtml(u.title || t('noTitlePlaceholder')) + '”</li>';
-        });
-        uHtml += '</ul>';
-        panel.innerHTML = uHtml;
-        panel.style.display = 'block';
-      } else {
-        panel.style.display = 'none';
-      }
-    }
-
-    document.getElementById('a_refreshBtn').addEventListener('click', load);
-
-    return { init: init };
-  })();
+  // ---------------- 啟動 ----------------
+  renderDayTabs();
+  renderTemplateGrid();
+  renderFolderTabs();
+  renderFolderPanel();
 </script>
 
 </body>
