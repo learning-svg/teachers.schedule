@@ -356,7 +356,7 @@
   // GAS_EXEC_URL:Google Apps Script 部署成「網路應用程式」後拿到的網址
   //              (格式類似 https://script.google.com/macros/s/xxxx/exec)
   const LIFF_ID = '2009789905-1PJRkuCz';
-  const GAS_EXEC_URL = '[https://script.google.com/macros/s/AKfycbxPw648Qh3CnNIGvkWF__I-A-d3Bci550hxUkV7bVRrrSatOX5hrtzUzsNM8QoesGpS/exec';
+  const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbxPw648Qh3CnNIGvkWF__I-A-d3Bci550hxUkV7bVRrrSatOX5hrtzUzsNM8QoesGpS/exec';
   // ==========================================================
 
   // 排課參數的預設值(登入成功後會自動被 Code.gs 的 CONFIG 覆蓋,
