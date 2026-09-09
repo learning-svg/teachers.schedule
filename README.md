@@ -426,6 +426,35 @@
    * Code.gs 那邊會自己用 JSON.parse(e.postData.contents) 解析內容,
    * 所以不需要正確的 Content-Type 也沒關係。
    */
+  /**
+   * LINE 的登入憑證(ID Token)大約一小時就過期,而且 LIFF 不會自動換新的:
+   * 使用者看起來還是「已登入」,但送到後端的憑證已經失效,後端就會回報驗證失敗。
+   * 下面這幾個函式負責偵測這種情況,並自動重新登入一次拿到新的憑證。
+   */
+  function isTokenExpired(res) {
+    if (!res || res.ok) return false;
+    const msg = String(res.message || '') + ' ' + String(res.error || '');
+    return msg.indexOf('expired') !== -1 || msg.indexOf('IdToken') !== -1;
+  }
+
+  // 記錄上次自動重新登入的時間,避免萬一一直失敗時陷入無限跳轉
+  function relogRecently() {
+    try {
+      const t = parseInt(sessionStorage.getItem('reloginAt') || '0', 10);
+      return !!t && (Date.now() - t < 30000);
+    } catch (err) { return false; }
+  }
+
+  function forceRelogin() {
+    try { sessionStorage.setItem('reloginAt', String(Date.now())); } catch (err) {}
+    try { liff.logout(); } catch (err) {}
+    try {
+      liff.login({ redirectUri: window.location.href.split('#')[0] });
+    } catch (err) {
+      window.location.reload();
+    }
+  }
+
   function callApi(action, params) {
     const payload = Object.assign({ action: action }, params || {});
     return fetch(GAS_EXEC_URL, {
@@ -434,6 +463,10 @@
     }).then(function (res) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.json();
+    }).then(function (json) {
+      // 憑證過期就自動重新登入(頁面會跳轉,拿到新憑證後回到原本畫面)
+      if (isTokenExpired(json) && !relogRecently()) forceRelogin();
+      return json;
     });
   }
 
@@ -449,6 +482,16 @@
         liff.login();
         return;
       }
+      // 先自己檢查憑證的到期時間,快過期就直接重新登入,不用等後端報錯
+      const decoded = liff.getDecodedIDToken();
+      if (!decoded || !decoded.exp || (decoded.exp * 1000) <= Date.now() + 60000) {
+        if (!relogRecently()) {
+          document.getElementById('bootStatus').textContent = 'Session expired, signing you in again...';
+          forceRelogin();
+          return;
+        }
+      }
+
       idToken = liff.getIDToken();
       return liff.getProfile();
     }).then(function (p) {
@@ -468,7 +511,9 @@
         TeacherApp.init(idToken, profile, role);
       } else {
         document.getElementById('bootStatus').style.display = 'block';
-        document.getElementById('bootStatus').textContent = 'Failed to check permissions: ' + (role.message || role.error || 'unknown error');
+        document.getElementById('bootStatus').textContent = isTokenExpired(role)
+          ? 'Your login has expired. Please close this page and open the link again.'
+          : ('Failed to check permissions: ' + (role.message || role.error || 'unknown error'));
       }
     }).catch(function (err) {
       document.getElementById('bootStatus').style.display = 'block';
@@ -793,16 +838,16 @@
     }
     document.getElementById('a_tabOpenSlots').addEventListener('click', function () { showView('openSlots'); });
     document.getElementById('a_tabTeachers').addEventListener('click', function () { showView('teachers'); });
-    document.getElementById('a_openRefreshBtn').addEventListener('click', loadOpenSlots);
+    document.getElementById('a_openRefreshBtn').addEventListener('click', function () { loadOpenSlots(true); });
     document.getElementById('a_teachersRefreshBtn').addEventListener('click', loadTeachers);
 
     // ---------------- Open Slots (folder tabs per teacher) ----------------
-    function loadOpenSlots() {
+    function loadOpenSlots(force) {
       document.getElementById('a_openStatus').style.display = 'block';
       document.getElementById('a_openStatus').textContent = t('statusLoading');
       document.getElementById('a_openApp').style.display = 'none';
 
-      callApi('getAdminWeeklyOverview', { idToken: idToken })
+      callApi('getAdminWeeklyOverview', { idToken: idToken, refresh: !!force })
         .then(function (res) {
           if (!res || !res.ok) {
             document.getElementById('a_openStatus').textContent = t('loadFailed') + (res ? res.error : t('unknownError'));
@@ -812,7 +857,9 @@
           if (!activeTeacherId && lastTeachersOverview.length) activeTeacherId = lastTeachersOverview[0].lineUserId;
           document.getElementById('a_openStatus').style.display = 'none';
           document.getElementById('a_openApp').style.display = 'block';
-          document.getElementById('a_openLastUpdated').textContent = t('lastUpdated') + new Date().toLocaleString();
+          // 顯示資料實際產生的時間(可能來自 2 分鐘內的快取),而不是畫面繪製時間
+          const generated = res.generatedAt ? new Date(res.generatedAt) : new Date();
+          document.getElementById('a_openLastUpdated').textContent = t('lastUpdated') + generated.toLocaleString();
           renderFolderTabs();
           renderFolderPanel();
         })
