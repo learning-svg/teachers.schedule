@@ -283,7 +283,7 @@
 
   .openDayRow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid #f2f2f2; }
   .openDayRow:first-of-type { border-top: none; }
-  .openDayRow .dName { flex: 0 0 44px; font-size: 12px; font-weight: 700; color: #555; padding-top: 4px; }
+  .openDayRow .dName { flex: 0 0 52px; font-size: 12px; font-weight: 700; color: #555; padding-top: 4px; }
   .openDayRow .dChips { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; }
 
   .chip { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 11px; white-space: nowrap; margin: 2px 2px 0 0; }
@@ -702,7 +702,7 @@
         statusLoading: '載入中...',
         loadFailed: '讀取失敗: ',
         unknownError: '未知錯誤',
-        dayShort: { Mon: '一', Tue: '二', Wed: '三', Thu: '四', Fri: '五', Sat: '六', Sun: '日' },
+        dayShort: { Mon: '週一', Tue: '週二', Wed: '週三', Thu: '週四', Fri: '週五', Sat: '週六', Sun: '週日' },
         panelSubtitle: function (n) {
           return n > 0
             ? ('目前有 ' + n + ' 個開放時段可以安排新學生')
