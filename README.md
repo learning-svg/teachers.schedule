@@ -20,7 +20,7 @@
   }
 
   /* ===================== Teacher view ===================== */
-  #teacherRoot { display: none; padding-bottom: 40px; }
+  #teacherRoot { display: none; padding-bottom: 110px; }
 
   #teacherRoot header {
     background: #06C755;
@@ -78,6 +78,29 @@
   }
   #t_emailSaveBtn:disabled { background: #bbb; }
 
+  /* Learning Portal 入口:放在 email 欄位下面、星期選單上面 */
+  #t_portalBtn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: #2e7dfa;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 13px 16px;
+    margin-bottom: 16px;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  #t_portalBtn .icon { font-size: 20px; flex: 0 0 auto; }
+  #t_portalBtn .txt { flex: 1; min-width: 0; }
+  #t_portalBtn .txt b { display: block; font-size: 14px; font-weight: 700; }
+  #t_portalBtn .txt small { display: block; font-size: 11px; opacity: .9; margin-top: 2px; }
+  #t_portalBtn .arrow { flex: 0 0 auto; font-size: 16px; opacity: .8; }
+
   #t_dayTabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
   .dayTab {
     flex: 1 1 auto;
@@ -129,10 +152,20 @@
     color: #bbb;
   }
 
+  /* 儲存列固定在畫面最下方,老師不用捲到底才找得到按鈕 */
   #t_saveBar {
-    margin-top: 18px;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: #fff;
+    border-top: 1px solid #e0e0e0;
+    padding: 10px 16px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     display: none;
+    z-index: 20;
+    box-shadow: 0 -2px 8px rgba(0,0,0,.06);
   }
+  #t_saveHint { font-size: 11px; color: #888; margin-bottom: 6px; text-align: center; }
+  #t_saveHint.unsaved { color: #d17a00; font-weight: 700; }
   #t_saveBtn {
     width: 100%;
     background: #06C755;
@@ -144,6 +177,7 @@
     font-weight: 700;
     cursor: pointer;
   }
+  #t_saveBtn.clean { background: #9aa0a6; }
   #t_saveBtn:disabled { background: #bbb; }
 
   #t_toast {
@@ -340,6 +374,15 @@
       </div>
     </div>
 
+    <a id="t_portalBtn" href="#" rel="noopener">
+      <span class="icon">📚</span>
+      <span class="txt">
+        <b>Learning Portal</b>
+        <small>Student homework, feedback &amp; teaching materials</small>
+      </span>
+      <span class="arrow">›</span>
+    </a>
+
     <div id="t_dayTabs"></div>
     <div id="t_legend">
       <span><i class="dot" style="background:#2e7dfa;"></i>Booked (student matched from calendar)</span>
@@ -349,6 +392,7 @@
     <div class="slotGrid" id="t_slotGrid"></div>
 
     <div id="t_saveBar">
+      <div id="t_saveHint"></div>
       <button id="t_saveBtn">Save Weekly Schedule</button>
     </div>
 
@@ -409,6 +453,8 @@
   //              (格式類似 https://script.google.com/macros/s/xxxx/exec)
   const LIFF_ID = '2009789905-1PJRkuCz';
   const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbxPw648Qh3CnNIGvkWF__I-A-d3Bci550hxUkV7bVRrrSatOX5hrtzUzsNM8QoesGpS/exec';
+  // 老師頁面上「Learning Portal」按鈕要連到的網址(學生作業、回饋、教材)
+  const LEARNING_PORTAL_URL = 'https://liff.line.me/2008845693-L2SUJz8X';
   // ==========================================================
 
   // 排課參數的預設值(登入成功後會自動被 Code.gs 的 CONFIG 覆蓋,
@@ -578,6 +624,7 @@
     function loadData() {
       setStatus('Loading your schedule...');
       document.getElementById('t_app').style.display = 'none';
+      document.getElementById('t_saveBar').style.display = 'none';
 
       callApi('getMyWeeklyTemplate', { idToken: idToken })
         .then(function (res) {
@@ -597,6 +644,18 @@
           setStatus('Failed to load: ' + err.message);
         });
     }
+
+    document.getElementById('t_portalBtn').addEventListener('click', function (e) {
+      e.preventDefault();
+      // 在 LINE 裡用 LIFF 開新視窗,關掉之後還能回到這個排課頁面
+      try {
+        if (typeof liff !== 'undefined' && liff.openWindow) {
+          liff.openWindow({ url: LEARNING_PORTAL_URL, external: false });
+          return;
+        }
+      } catch (err) { /* 不在 LINE 環境就用下面的方式開 */ }
+      window.open(LEARNING_PORTAL_URL, '_blank');
+    });
 
     function renderEmail(email) {
       document.getElementById('t_emailInput').value = email;
@@ -683,7 +742,28 @@
         }
         grid.appendChild(btn);
       });
-      document.getElementById('t_saveBar').style.display = dirty ? 'block' : 'none';
+      updateSaveBar();
+    }
+
+    /**
+     * 儲存列永遠留在畫面上,只是依「有沒有未存檔的變更」改變外觀:
+     * 有變更 -> 綠色按鈕 + 橘色提示;沒變更 -> 灰色按鈕 + 已儲存提示。
+     * (按鈕不會鎖住,老師隨時可以再按一次存檔,不會覺得系統壞掉)
+     */
+    function updateSaveBar() {
+      const bar = document.getElementById('t_saveBar');
+      const btn = document.getElementById('t_saveBtn');
+      const hint = document.getElementById('t_saveHint');
+      bar.style.display = 'block';
+      if (dirty) {
+        btn.classList.remove('clean');
+        hint.className = 'unsaved';
+        hint.textContent = 'You have unsaved changes';
+      } else {
+        btn.classList.add('clean');
+        hint.className = '';
+        hint.textContent = 'All changes saved';
+      }
     }
 
     function escapeHtml(s) {
@@ -991,4 +1071,4 @@
 </script>
 
 </body>
-</html>
+</html
