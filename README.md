@@ -46,6 +46,38 @@
 
   #t_app { padding: 16px; display: none; }
 
+  #t_emailCard {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  #t_emailCard.needsEmail { border-color: #f0b429; background: #fffbf0; }
+  #t_emailCard h3 { margin: 0 0 4px; font-size: 13px; }
+  #t_emailCard p { margin: 0 0 10px; font-size: 11px; color: #888; line-height: 1.5; }
+  #t_emailRow { display: flex; gap: 8px; }
+  #t_emailInput {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  #t_emailSaveBtn {
+    flex: 0 0 auto;
+    background: #222;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  #t_emailSaveBtn:disabled { background: #bbb; }
+
   #t_dayTabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
   .dayTab {
     flex: 1 1 auto;
@@ -259,6 +291,17 @@
 
   .emptyState { text-align: center; color: #999; font-size: 12px; padding: 24px 10px; }
 
+  .warnBox {
+    background: #fffbf0;
+    border: 1px solid #f0d98c;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #6b5900;
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
   /* ---- Teacher roster table ---- */
   .tableWrap { overflow-x: auto; border-radius: 10px; }
   #a_teachersTable { border-collapse: collapse; width: 100%; background: #fff; border-radius: 10px; overflow: hidden; }
@@ -288,6 +331,15 @@
   <div id="t_status">Loading your schedule...</div>
 
   <div id="t_app">
+    <div id="t_emailCard">
+      <h3>Your email address</h3>
+      <p>Use the email address where you receive the calendar invitations for your classes. This is how the system knows which classes on the calendar are yours.</p>
+      <div id="t_emailRow">
+        <input id="t_emailInput" type="email" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="you@example.com">
+        <button id="t_emailSaveBtn">Save</button>
+      </div>
+    </div>
+
     <div id="t_dayTabs"></div>
     <div id="t_legend">
       <span><i class="dot" style="background:#2e7dfa;"></i>Booked (student matched from calendar)</span>
@@ -492,6 +544,7 @@
           dirty = false;
           document.getElementById('t_status').style.display = 'none';
           document.getElementById('t_app').style.display = 'block';
+          renderEmail(res.email || '');
           renderDayTabs();
           renderSlotGrid();
         })
@@ -499,6 +552,42 @@
           setStatus('Failed to load: ' + err.message);
         });
     }
+
+    function renderEmail(email) {
+      document.getElementById('t_emailInput').value = email;
+      // 還沒填 email 時,把這張卡片標成黃色提醒老師先填
+      document.getElementById('t_emailCard').classList.toggle('needsEmail', !email);
+    }
+
+    document.getElementById('t_emailSaveBtn').addEventListener('click', function () {
+      const btn = document.getElementById('t_emailSaveBtn');
+      const email = document.getElementById('t_emailInput').value.trim();
+      if (!email) {
+        showToast('Please enter your email address first.');
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      callApi('saveMyEmail', { idToken: idToken, email: email })
+        .then(function (res) {
+          btn.disabled = false;
+          btn.textContent = 'Save';
+          if (res && res.ok) {
+            showToast('Email saved. Your booked classes will now show up automatically.');
+            loadData(); // 重新比對行事曆,馬上看到已預約的學生
+          } else if (res && res.error === 'INVALID_EMAIL') {
+            showToast('That does not look like a valid email address.');
+          } else {
+            showToast('Save failed, please try again.');
+          }
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = 'Save';
+          showToast('Save failed: ' + err.message);
+        });
+    });
 
     function renderDayTabs() {
       const wrap = document.getElementById('t_dayTabs');
@@ -621,8 +710,11 @@
         },
         folderCnt: function (n) { return n + ' 開放'; },
         noTeachersOpen: '目前還沒有老師設定固定課表',
+        noEmailWarning: '這位老師還沒填 email,目前是用「名字比對行事曆」,建議請他打開連結填一下 email 會更準確。',
         colName: '姓名',
         colLineId: 'LINE ID',
+        colEmail: 'Email',
+        emailMissing: '(未填)',
         colKeyword: '比對關鍵字',
         colFirstSeen: '首次使用',
         colLastUpdated: '最近使用',
@@ -650,8 +742,11 @@
         },
         folderCnt: function (n) { return n + ' open'; },
         noTeachersOpen: 'No teacher has set up a weekly schedule yet',
+        noEmailWarning: "This teacher hasn't entered an email yet, so their classes are matched by name. Ask them to open the link and fill it in for accurate matching.",
         colName: 'Name',
         colLineId: 'LINE ID',
+        colEmail: 'Email',
+        emailMissing: '(not set)',
         colKeyword: 'Match Keyword',
         colFirstSeen: 'First seen',
         colLastUpdated: 'Last active',
@@ -753,6 +848,9 @@
 
       let html = '<div class="panelTitle">' + escapeHtml(tc.name) + '</div>';
       html += '<div class="panelSub">' + escapeHtml(t('panelSubtitle')(tc.openCount)) + '</div>';
+      if (!tc.hasEmail) {
+        html += '<div class="warnBox">' + escapeHtml(t('noEmailWarning')) + '</div>';
+      }
 
       if (tc.openCount > 0) {
         DAY_KEYS.forEach(function (k) {
@@ -806,16 +904,21 @@
       document.getElementById('a_teachersCount').textContent = t('teachersCount')(teachers.length);
       const table = document.getElementById('a_teachersTable');
       let html = '<tr><th>' + t('colName') + '</th><th>' + t('colLineId') + '</th><th>' +
+        t('colEmail') + '</th><th>' +
         t('colKeyword') + '</th><th>' + t('colFirstSeen') + '</th><th>' + t('colLastUpdated') + '</th></tr>';
       if (teachers.length === 0) {
-        html += '<tr><td colspan="5" class="empty">' + t('noTeachersRoster') + '</td></tr>';
+        html += '<tr><td colspan="6" class="empty">' + t('noTeachersRoster') + '</td></tr>';
       }
       table.innerHTML = html;
       teachers.forEach(function (tc) {
         const tr = document.createElement('tr');
+        const emailCell = tc.email
+          ? escapeHtml(tc.email)
+          : '<span style="color:#d17a00;">' + t('emailMissing') + '</span>';
         tr.innerHTML =
           '<td>' + escapeHtml(tc.name) + '</td>' +
           '<td style="font-family:monospace;">' + escapeHtml(tc.lineUserId) + '</td>' +
+          '<td>' + emailCell + '</td>' +
           '<td>' + escapeHtml(tc.matchKeyword) + '</td>' +
           '<td>' + (tc.firstSeen ? new Date(tc.firstSeen).toLocaleString() : '-') + '</td>' +
           '<td>' + (tc.lastUpdated ? new Date(tc.lastUpdated).toLocaleString() : '-') + '</td>';
