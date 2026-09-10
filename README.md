@@ -325,6 +325,21 @@
 
   .emptyState { text-align: center; color: #999; font-size: 12px; padding: 24px 10px; }
 
+  /* ---- 時段找老師 ---- */
+  .dayTabsRow { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .plainPanel { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 16px; }
+  .timeRow { display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; border-top: 1px solid #f2f2f2; }
+  .timeRow:first-of-type { border-top: none; }
+  .timeRow .tSlot {
+    flex: 0 0 112px;
+    font-size: 13px;
+    font-weight: 700;
+    padding-top: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  .timeRow .tNames { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip.teacher { background: #eef4ff; color: #2554d1; border: 1px solid #c3d3fb; }
+
   .warnBox {
     background: #fffbf0;
     border: 1px solid #f0d98c;
@@ -415,6 +430,7 @@
   <div class="adminContainer">
     <div class="adminTabs">
       <button class="tabBtn active" id="a_tabOpenSlots"></button>
+      <button class="tabBtn" id="a_tabByTime"></button>
       <button class="tabBtn" id="a_tabTeachers"></button>
     </div>
 
@@ -428,6 +444,23 @@
       <div id="a_openApp" style="display:none;">
         <div class="folderTabs" id="a_folderTabs"></div>
         <div class="folderPanel" id="a_folderPanel"></div>
+      </div>
+    </div>
+
+    <!-- ---- 時段找老師 ---- -->
+    <div id="a_byTimeView" style="display:none;">
+      <div class="adminToolbar">
+        <button class="btn" id="a_timeRefreshBtn"></button>
+        <span id="a_timeUpdated" style="font-size:11px;color:#999;"></span>
+      </div>
+      <div id="a_timeStatus" style="text-align:center;color:#888;padding:24px;font-size:13px;"></div>
+      <div id="a_timeApp" style="display:none;">
+        <div class="dayTabsRow" id="a_timeDayTabs"></div>
+        <div class="plainPanel">
+          <div class="panelTitle" id="a_timeTitle" style="font-size:15px;font-weight:700;margin-bottom:4px;"></div>
+          <div class="panelSub" id="a_timeSub" style="font-size:12px;color:#888;margin-bottom:14px;"></div>
+          <div id="a_timeList"></div>
+        </div>
       </div>
     </div>
 
@@ -451,8 +484,8 @@
   // LIFF_ID:LINE Developers Console 裡 LIFF App 的 ID
   // GAS_EXEC_URL:Google Apps Script 部署成「網路應用程式」後拿到的網址
   //              (格式類似 https://script.google.com/macros/s/xxxx/exec)
-  const LIFF_ID = '2009789905-1PJRkuCz';
-  const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbxPw648Qh3CnNIGvkWF__I-A-d3Bci550hxUkV7bVRrrSatOX5hrtzUzsNM8QoesGpS/exec';
+  const LIFF_ID = 'YOUR_LIFF_ID_HERE';
+  const GAS_EXEC_URL = 'YOUR_APPS_SCRIPT_EXEC_URL_HERE';
   // 老師頁面上「Learning Portal」按鈕要連到的網址(學生作業、回饋、教材)
   const LEARNING_PORTAL_URL = 'https://liff.line.me/2008845693-L2SUJz8X';
   // ==========================================================
@@ -821,6 +854,7 @@
         subtitle: '瀏覽每位老師的固定課表,快速找到還能安排新學生的空堂',
         langBtn: 'EN',
         tabOpenSlots: '老師空堂',
+        tabByTime: '時段找老師',
         tabTeachers: '老師名單',
         refresh: '重新整理',
         lastUpdated: '更新時間: ',
@@ -835,6 +869,14 @@
         },
         folderCnt: function (n) { return n + ' 開放'; },
         noTeachersOpen: '目前還沒有老師設定固定課表',
+        timeTitle: function (d) { return d + ' 有空堂的時段'; },
+        timeSub: function (n) {
+          return n > 0
+            ? ('這一天有 ' + n + ' 個時段可以安排新學生,點下面的時間看有哪些老師有空')
+            : '這一天目前所有老師的固定時段都已經有學生了';
+        },
+        timeDayCnt: function (n) { return n + ' 段'; },
+        noOpenThisDay: '這一天目前沒有可以安排新學生的時段',
         noEmailWarning: '這位老師還沒填 email,目前是用「名字比對行事曆」,建議請他打開連結填一下 email 會更準確。',
         colName: '姓名',
         colLineId: 'LINE ID',
@@ -853,6 +895,7 @@
         subtitle: "Browse each teacher's weekly schedule and quickly find open slots for a new student",
         langBtn: '中文',
         tabOpenSlots: 'Open Slots',
+        tabByTime: 'Find by Time',
         tabTeachers: 'Teacher Roster',
         refresh: 'Refresh',
         lastUpdated: 'Last updated: ',
@@ -867,6 +910,14 @@
         },
         folderCnt: function (n) { return n + ' open'; },
         noTeachersOpen: 'No teacher has set up a weekly schedule yet',
+        timeTitle: function (d) { return 'Open time slots on ' + d; },
+        timeSub: function (n) {
+          return n > 0
+            ? (n + ' time slot' + (n === 1 ? '' : 's') + ' available to book a new student')
+            : 'Every regular slot on this day is already booked';
+        },
+        timeDayCnt: function (n) { return '' + n; },
+        noOpenThisDay: 'No open time slots on this day',
         noEmailWarning: "This teacher hasn't entered an email yet, so their classes are matched by name. Ask them to open the link and fill it in for accurate matching.",
         colName: 'Name',
         colLineId: 'LINE ID',
@@ -895,6 +946,8 @@
       document.getElementById('a_hSubtitle').textContent = t('subtitle');
       document.getElementById('a_langBtn').textContent = t('langBtn');
       document.getElementById('a_tabOpenSlots').textContent = t('tabOpenSlots');
+      document.getElementById('a_tabByTime').textContent = t('tabByTime');
+      document.getElementById('a_timeRefreshBtn').textContent = t('refresh');
       document.getElementById('a_tabTeachers').textContent = t('tabTeachers');
       document.getElementById('a_openRefreshBtn').textContent = t('refresh');
       document.getElementById('a_teachersRefreshBtn').textContent = t('refresh');
@@ -905,19 +958,29 @@
       applyStaticText();
       if (lastTeachersOverview) renderFolderTabs();
       if (lastTeachersOverview) renderFolderPanel();
+      if (lastTeachersOverview) renderByTime();
       if (lastRoster) renderTeachers(lastRoster);
     });
 
     function showView(view) {
       currentView = view;
       document.getElementById('a_openSlotsView').style.display = view === 'openSlots' ? 'block' : 'none';
+      document.getElementById('a_byTimeView').style.display = view === 'byTime' ? 'block' : 'none';
       document.getElementById('a_teachersView').style.display = view === 'teachers' ? 'block' : 'none';
       document.getElementById('a_tabOpenSlots').classList.toggle('active', view === 'openSlots');
+      document.getElementById('a_tabByTime').classList.toggle('active', view === 'byTime');
       document.getElementById('a_tabTeachers').classList.toggle('active', view === 'teachers');
       if (view === 'teachers' && !lastRoster) loadTeachers();
+      if (view === 'byTime') {
+        // 兩個分頁用的是同一份資料,已經載過就直接畫,不用再打一次 API
+        if (lastTeachersOverview) renderByTime();
+        else loadOpenSlots();
+      }
     }
     document.getElementById('a_tabOpenSlots').addEventListener('click', function () { showView('openSlots'); });
+    document.getElementById('a_tabByTime').addEventListener('click', function () { showView('byTime'); });
     document.getElementById('a_tabTeachers').addEventListener('click', function () { showView('teachers'); });
+    document.getElementById('a_timeRefreshBtn').addEventListener('click', function () { loadOpenSlots(true); });
     document.getElementById('a_openRefreshBtn').addEventListener('click', function () { loadOpenSlots(true); });
     document.getElementById('a_teachersRefreshBtn').addEventListener('click', loadTeachers);
 
@@ -942,9 +1005,11 @@
           document.getElementById('a_openLastUpdated').textContent = t('lastUpdated') + generated.toLocaleString();
           renderFolderTabs();
           renderFolderPanel();
+          renderByTime();
         })
         .catch(function (err) {
           document.getElementById('a_openStatus').textContent = t('loadFailed') + err.message;
+          document.getElementById('a_timeStatus').textContent = t('loadFailed') + err.message;
         });
     }
 
@@ -994,6 +1059,84 @@
       }
 
       panel.innerHTML = html;
+    }
+
+    // ---------------- 時段找老師(把同一份資料改用「時間」的角度切) ----------------
+    let timeActiveDay = 'Mon';
+
+    function slotStartList() {
+      const out = [];
+      for (let m = CONFIG.SLOT_START_HOUR * 60; m < CONFIG.SLOT_END_HOUR * 60; m += CONFIG.SLOT_MINUTES) {
+        out.push(m);
+      }
+      return out;
+    }
+    function padNum(n) { return n < 10 ? '0' + n : '' + n; }
+    function minToHhmm(m) { return padNum(Math.floor(m / 60)) + ':' + padNum(m % 60); }
+
+    // 這個星期幾、這個時間點,有哪些老師是空的
+    function openTeachersAt(day, startStr) {
+      return (lastTeachersOverview || []).filter(function (tc) {
+        return (tc.template || []).some(function (s) {
+          return s.day === day && s.start === startStr && !s.student;
+        });
+      });
+    }
+
+    function openSlotCountForDay(day) {
+      let n = 0;
+      slotStartList().forEach(function (m) {
+        if (openTeachersAt(day, minToHhmm(m)).length > 0) n++;
+      });
+      return n;
+    }
+
+    function renderByTime() {
+      if (!lastTeachersOverview) return;
+      document.getElementById('a_timeStatus').style.display = 'none';
+      document.getElementById('a_timeApp').style.display = 'block';
+      document.getElementById('a_timeUpdated').textContent =
+        document.getElementById('a_openLastUpdated').textContent;
+
+      // 星期標籤(顯示每天有幾個時段還排得進新學生)
+      const tabs = document.getElementById('a_timeDayTabs');
+      tabs.innerHTML = '';
+      DAY_KEYS.forEach(function (k) {
+        const cnt = openSlotCountForDay(k);
+        const tab = document.createElement('div');
+        tab.className = 'dayTab' + (k === timeActiveDay ? ' active' : '') + (cnt > 0 ? ' hasSlots' : '');
+        tab.innerHTML = t('dayShort')[k] + (cnt > 0 ? '<span class="cnt">' + t('timeDayCnt')(cnt) + '</span>' : '');
+        tab.addEventListener('click', function () { timeActiveDay = k; renderByTime(); });
+        tabs.appendChild(tab);
+      });
+
+      // 時段清單:只列出「至少有一位老師有空」的時間
+      const list = document.getElementById('a_timeList');
+      list.innerHTML = '';
+      let shown = 0;
+      slotStartList().forEach(function (m) {
+        const startStr = minToHhmm(m);
+        const endStr = minToHhmm(m + CONFIG.SLOT_MINUTES);
+        const teachers = openTeachersAt(timeActiveDay, startStr);
+        if (!teachers.length) return;
+        shown++;
+
+        const row = document.createElement('div');
+        row.className = 'timeRow';
+        let names = '';
+        teachers.forEach(function (tc) {
+          names += '<span class="chip teacher">' + escapeHtml(tc.name) + '</span>';
+        });
+        row.innerHTML = '<div class="tSlot">' + startStr + '-' + endStr + '</div>' +
+          '<div class="tNames">' + names + '</div>';
+        list.appendChild(row);
+      });
+
+      document.getElementById('a_timeTitle').textContent = t('timeTitle')(t('dayShort')[timeActiveDay]);
+      document.getElementById('a_timeSub').textContent = t('timeSub')(shown);
+      if (!shown) {
+        list.innerHTML = '<div class="emptyState">' + t('noOpenThisDay') + '</div>';
+      }
     }
 
     // ---------------- Teacher Roster ----------------
