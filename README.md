@@ -331,7 +331,7 @@
   .timeRow { display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; border-top: 1px solid #f2f2f2; }
   .timeRow:first-of-type { border-top: none; }
   .timeRow .tSlot {
-    flex: 0 0 112px;
+    flex: 0 0 136px;
     font-size: 13px;
     font-weight: 700;
     padding-top: 3px;
@@ -484,15 +484,22 @@
   // LIFF_ID:LINE Developers Console 裡 LIFF App 的 ID
   // GAS_EXEC_URL:Google Apps Script 部署成「網路應用程式」後拿到的網址
   //              (格式類似 https://script.google.com/macros/s/xxxx/exec)
+  // 以下三個值已經填好椰菲英文目前使用的設定,直接上傳即可,不用再修改。
+  //
+  // LIFF_ID             LINE Developers Console 裡 LIFF App 的 ID
+  // GAS_EXEC_URL        Apps Script 部署成「網路應用程式」後拿到的網址,一定是
+  //                     https://script.google.com/macros/s/.../exec 這種格式。
+  //                     填錯或留著預設值的話,網頁會往 GitHub 自己送請求,出現 HTTP 405。
+  // LEARNING_PORTAL_URL 老師頁面上「Learning Portal」按鈕連到的地方,是一個
+  //                     https://liff.line.me/... 的 LINE 連結,不要跟上面那個搞混。
   const LIFF_ID = '2009789905-1PJRkuCz';
   const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbxPw648Qh3CnNIGvkWF__I-A-d3Bci550hxUkV7bVRrrSatOX5hrtzUzsNM8QoesGpS/exec';
-  // 老師頁面上「Learning Portal」按鈕要連到的網址(學生作業、回饋、教材)
   const LEARNING_PORTAL_URL = 'https://liff.line.me/2008845693-L2SUJz8X';
   // ==========================================================
 
   // 排課參數的預設值(登入成功後會自動被 Code.gs 的 CONFIG 覆蓋,
   // 這裡只是在還沒登入完成前，畫面需要用到時的暫時預設值）
-  const CONFIG = { SLOT_START_HOUR: 9, SLOT_END_HOUR: 21, SLOT_MINUTES: 30 };
+  const CONFIG = { SLOT_START_HOUR: 9, SLOT_END_HOUR: 23, SLOT_MINUTES: 30 };
 
   /**
    * 呼叫 Google Apps Script 後端。
@@ -532,6 +539,31 @@
     } catch (err) {
       window.location.reload();
     }
+  }
+
+  /**
+   * 顯示用的 12 小時制格式化。
+   * 注意:只影響「畫面上看到的文字」,系統內部與試算表存的一律還是 24 小時制的
+   * "HH:mm"(比對行事曆、存檔都靠它),所以這裡不能拿來當資料用。
+   */
+  function to12(hhmm) {
+    const parts = String(hhmm).split(':');
+    let h = parseInt(parts[0], 10);
+    const m = parts[1] || '00';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return { h: h, m: m, ampm: ampm };
+  }
+
+  // 例:17:00-17:30 -> 5:00–5:30 PM;11:30-12:00 -> 11:30 AM–12:00 PM
+  function formatRange12(start, end) {
+    const a = to12(start);
+    const b = to12(end);
+    if (a.ampm === b.ampm) {
+      return a.h + ':' + a.m + '–' + b.h + ':' + b.m + ' ' + b.ampm;
+    }
+    return a.h + ':' + a.m + ' ' + a.ampm + '–' + b.h + ':' + b.m + ' ' + b.ampm;
   }
 
   function callApi(action, params) {
@@ -616,7 +648,7 @@
 
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
     function hhmm(m) { return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
-    function slotLabel(m) { return hhmm(m) + '-' + hhmm(m + CONFIG.SLOT_MINUTES); }
+    function slotLabel(m) { return formatRange12(hhmm(m), hhmm(m + CONFIG.SLOT_MINUTES)); }
 
     function slotList() {
       const out = [];
@@ -1052,7 +1084,7 @@
           if (openSlots.length === 0) return;
           html += '<div class="openDayRow"><div class="dName">' + t('dayShort')[k] + '</div><div class="dChips">';
           openSlots.forEach(function (s) {
-            html += '<span class="chip open">' + s.start + '-' + s.end + '</span>';
+            html += '<span class="chip open">' + formatRange12(s.start, s.end) + '</span>';
           });
           html += '</div></div>';
         });
@@ -1127,7 +1159,7 @@
         teachers.forEach(function (tc) {
           names += '<span class="chip teacher">' + escapeHtml(tc.name) + '</span>';
         });
-        row.innerHTML = '<div class="tSlot">' + startStr + '-' + endStr + '</div>' +
+        row.innerHTML = '<div class="tSlot">' + formatRange12(startStr, endStr) + '</div>' +
           '<div class="tNames">' + names + '</div>';
         list.appendChild(row);
       });
@@ -1214,4 +1246,4 @@
 </script>
 
 </body>
-</html>
+</html
