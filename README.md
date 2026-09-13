@@ -118,6 +118,82 @@
   .dayTab.active .cnt { color: #9be7c4; }
   .dayTab.hasSlots:not(.active) { border-color: #06C755; }
 
+  /* 檢視切換:整週表格 / 單日清單 */
+  #t_viewToggle { display: flex; gap: 6px; margin-bottom: 12px; }
+  #t_viewToggle button {
+    flex: 1;
+    padding: 9px 4px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    cursor: pointer;
+  }
+  #t_viewToggle button.active { background: #222; border-color: #222; color: #fff; }
+
+  /* 整週表格:時間為列、星期為欄,跟試算表一樣 */
+  #t_weekWrap {
+    max-height: 70vh;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #e6e6e6;
+    border-radius: 10px;
+    background: #fff;
+  }
+  table.weekTable {
+    border-collapse: separate;
+    border-spacing: 0;
+    /* 固定欄寬,學生名字太長時會自動換行,不會把欄位撐寬 */
+    table-layout: fixed;
+    width: 100%;
+    min-width: 540px;
+    font-size: 11px;
+  }
+  table.weekTable th, table.weekTable td {
+    border-right: 1px solid #eee;
+    border-bottom: 1px solid #eee;
+    padding: 0;
+  }
+  table.weekTable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #222;
+    color: #fff;
+    font-weight: 700;
+    padding: 7px 4px;
+    text-align: center;
+    width: 68px;
+  }
+  table.weekTable thead th.timeHead { left: 0; z-index: 4; width: 64px; }
+  table.weekTable td.timeCell {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #f5f6f7;
+    color: #444;
+    font-weight: 600;
+    font-size: 10px;
+    padding: 5px 4px;
+    white-space: nowrap;
+  }
+  table.weekTable td.cell {
+    height: 30px;
+    font-size: 10.5px;
+    text-align: center;
+    vertical-align: middle;
+    cursor: pointer;
+    padding: 4px 3px;
+    line-height: 1.25;
+    word-break: break-word;
+  }
+  table.weekTable td.cell.booked { background: #e8effe; color: #123a7a; font-weight: 600; cursor: default; }
+  table.weekTable td.cell.open { background: #e6f9ee; color: #06913c; font-weight: 600; }
+  table.weekTable td.cell.empty { background: #fff; }
+  table.weekTable tr.hourStart td, table.weekTable tr.hourStart th { border-top: 1px solid #dcdcdc; }
+
   #t_legend {
     display: flex;
     flex-wrap: wrap;
@@ -398,12 +474,18 @@
       <span class="arrow">›</span>
     </a>
 
+    <div id="t_viewToggle">
+      <button id="t_viewWeekBtn" class="active">Whole week</button>
+      <button id="t_viewDayBtn">One day</button>
+    </div>
+
     <div id="t_dayTabs"></div>
     <div id="t_legend">
       <span><i class="dot" style="background:#2e7dfa;"></i>Booked (student matched from calendar)</span>
       <span><i class="dot" style="background:#06C755;"></i>My usual time (open)</span>
       <span><i class="dot" style="background:#fff;border:1px solid #e0e0e0;"></i>Not scheduled</span>
     </div>
+    <div id="t_weekWrap"><table class="weekTable" id="t_weekTable"></table></div>
     <div class="slotGrid" id="t_slotGrid"></div>
 
     <div id="t_saveBar">
@@ -645,6 +727,7 @@
     let template = []; // [{day, start, end, student}]
     let activeDay = 'Mon';
     let dirty = false;
+    let viewMode = 'week'; // 'week' = 整週表格(跟試算表一樣) / 'day' = 單日清單
 
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
     function hhmm(m) { return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
@@ -702,8 +785,7 @@
           document.getElementById('t_status').style.display = 'none';
           document.getElementById('t_app').style.display = 'block';
           renderEmail(res.email || '');
-          renderDayTabs();
-          renderSlotGrid();
+          renderAll();
         })
         .catch(function (err) {
           setStatus('Failed to load: ' + err.message);
@@ -758,6 +840,94 @@
         });
     });
 
+    /**
+     * 依目前的檢視模式決定要畫「整週表格」還是「單日清單」。
+     * 兩種模式共用同一份 template 資料,切換不會遺失還沒存檔的變更。
+     */
+    function renderAll() {
+      const weekOn = viewMode === 'week';
+      document.getElementById('t_viewWeekBtn').classList.toggle('active', weekOn);
+      document.getElementById('t_viewDayBtn').classList.toggle('active', !weekOn);
+      document.getElementById('t_weekWrap').style.display = weekOn ? 'block' : 'none';
+      document.getElementById('t_slotGrid').style.display = weekOn ? 'none' : 'grid';
+      document.getElementById('t_dayTabs').style.display = weekOn ? 'none' : 'flex';
+      if (weekOn) {
+        renderWeekGrid();
+      } else {
+        renderDayTabs();
+        renderSlotGrid();
+      }
+      updateSaveBar();
+    }
+
+    document.getElementById('t_viewWeekBtn').addEventListener('click', function () {
+      viewMode = 'week';
+      renderAll();
+    });
+    document.getElementById('t_viewDayBtn').addEventListener('click', function () {
+      viewMode = 'day';
+      renderAll();
+    });
+
+    /** 點一格空堂/未排課的格子時的切換邏輯(整週表格與單日清單共用) */
+    function toggleSlot(day, startStr, endStr) {
+      const slot = findSlot(day, startStr);
+      if (slot && slot.student) {
+        showToast('Matched from your Google Calendar booking. To change this, edit the class directly in Calendar.');
+        return;
+      }
+      if (slot) {
+        template = template.filter(function (s) { return s !== slot; });
+      } else {
+        template.push({ day: day, start: startStr, end: endStr, student: null });
+      }
+      dirty = true;
+      renderAll();
+    }
+
+    /** 整週表格:直排是時間、橫排是星期一到星期日,跟 Google 試算表的呈現一致 */
+    function renderWeekGrid() {
+      const table = document.getElementById('t_weekTable');
+      let html = '<thead><tr><th class="timeHead">Time</th>';
+      DAY_KEYS.forEach(function (d) { html += '<th>' + d + '</th>'; });
+      html += '</tr></thead><tbody>';
+
+      slotList().forEach(function (m) {
+        const startStr = hhmm(m);
+        html += '<tr' + (m % 60 === 0 ? ' class="hourStart"' : '') + '>';
+        // 手機畫面窄,整週表格只顯示開始時間(每格固定 30 分鐘)
+        html += '<td class="timeCell">' + to12(hhmm(m)) + '</td>';
+        DAY_KEYS.forEach(function (d) {
+          const slot = findSlot(d, startStr);
+          let cls = 'cell empty';
+          let txt = '';
+          if (slot && slot.student) {
+            cls = 'cell booked';
+            txt = escapeHtml(slot.student);
+          } else if (slot) {
+            cls = 'cell open';
+            txt = 'Open';
+          }
+          html += '<td class="' + cls + '" data-day="' + d + '" data-start="' + startStr + '">' + txt + '</td>';
+        });
+        html += '</tr>';
+      });
+      table.innerHTML = html + '</tbody>';
+    }
+
+    // 表格每次重畫都會換掉裡面的格子,所以事件掛在表格本身,只掛一次
+    document.getElementById('t_weekTable').addEventListener('click', function (e) {
+      let td = e.target;
+      while (td && td !== this && td.tagName !== 'TD') td = td.parentNode;
+      if (!td || td === this || td.className.indexOf('cell') === -1) return;
+      const day = td.getAttribute('data-day');
+      const startStr = td.getAttribute('data-start');
+      if (!day || !startStr) return;
+      const parts = startStr.split(':');
+      const endMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10) + CONFIG.SLOT_MINUTES;
+      toggleSlot(day, startStr, hhmm(endMin));
+    });
+
     function renderDayTabs() {
       const wrap = document.getElementById('t_dayTabs');
       wrap.innerHTML = '';
@@ -766,7 +936,7 @@
         const tab = document.createElement('div');
         tab.className = 'dayTab' + (k === activeDay ? ' active' : '') + (cnt > 0 ? ' hasSlots' : '');
         tab.innerHTML = k + (cnt > 0 ? '<span class="cnt">' + cnt + '</span>' : '');
-        tab.addEventListener('click', function () { activeDay = k; renderDayTabs(); renderSlotGrid(); });
+        tab.addEventListener('click', function () { activeDay = k; renderAll(); });
         wrap.appendChild(tab);
       });
     }
@@ -784,30 +954,15 @@
         if (slot && slot.student) {
           btn.classList.add('booked');
           btn.innerHTML = slotLabel(m) + '<small>with ' + escapeHtml(slot.student) + '</small>';
-          btn.addEventListener('click', function () {
-            showToast('Matched from your Google Calendar booking. To change this, edit the class directly in Calendar.');
-          });
         } else if (slot) {
           btn.classList.add('open');
           btn.innerHTML = slotLabel(m) + '<small>Open</small>';
-          btn.addEventListener('click', function () {
-            template = template.filter(function (s) { return s !== slot; });
-            dirty = true;
-            renderDayTabs();
-            renderSlotGrid();
-          });
         } else {
           btn.textContent = slotLabel(m);
-          btn.addEventListener('click', function () {
-            template.push({ day: activeDay, start: startStr, end: endStr, student: null });
-            dirty = true;
-            renderDayTabs();
-            renderSlotGrid();
-          });
         }
+        btn.addEventListener('click', function () { toggleSlot(activeDay, startStr, endStr); });
         grid.appendChild(btn);
       });
-      updateSaveBar();
     }
 
     /**
