@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -118,23 +119,18 @@
   .dayTab.active .cnt { color: #9be7c4; }
   .dayTab.hasSlots:not(.active) { border-color: #06C755; }
 
-  /* 檢視切換:整週表格 / 單日清單 */
-  #t_viewToggle { display: flex; gap: 6px; margin-bottom: 12px; }
-  #t_viewToggle button {
-    flex: 1;
-    padding: 9px 4px;
-    border-radius: 8px;
-    border: 1px solid #e0e0e0;
-    background: #fff;
-    font-size: 13px;
-    font-weight: 600;
+  .gridLegend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 10px 0 10px;
+    font-size: 11px;
     color: #666;
-    cursor: pointer;
   }
-  #t_viewToggle button.active { background: #222; border-color: #222; color: #fff; }
+  .gridLegend span { display: inline-flex; align-items: center; gap: 4px; }
 
-  /* 整週表格:時間為列、星期為欄,跟試算表一樣 */
-  #t_weekWrap {
+  /* 整週表格(管理後台用):時間為列、星期為欄,跟 Google 試算表的課表分頁一樣 */
+  .weekWrap {
     max-height: 70vh;
     overflow: auto;
     -webkit-overflow-scrolling: touch;
@@ -184,12 +180,11 @@
     font-size: 10.5px;
     text-align: center;
     vertical-align: middle;
-    cursor: pointer;
     padding: 4px 3px;
     line-height: 1.25;
     word-break: break-word;
   }
-  table.weekTable td.cell.booked { background: #e8effe; color: #123a7a; font-weight: 600; cursor: default; }
+  table.weekTable td.cell.booked { background: #e8effe; color: #123a7a; font-weight: 600; }
   table.weekTable td.cell.open { background: #e6f9ee; color: #06913c; font-weight: 600; }
   table.weekTable td.cell.empty { background: #fff; }
   table.weekTable tr.hourStart td, table.weekTable tr.hourStart th { border-top: 1px solid #dcdcdc; }
@@ -474,18 +469,12 @@
       <span class="arrow">›</span>
     </a>
 
-    <div id="t_viewToggle">
-      <button id="t_viewWeekBtn" class="active">Whole week</button>
-      <button id="t_viewDayBtn">One day</button>
-    </div>
-
     <div id="t_dayTabs"></div>
     <div id="t_legend">
       <span><i class="dot" style="background:#2e7dfa;"></i>Booked (student matched from calendar)</span>
       <span><i class="dot" style="background:#06C755;"></i>My usual time (open)</span>
       <span><i class="dot" style="background:#fff;border:1px solid #e0e0e0;"></i>Not scheduled</span>
     </div>
-    <div id="t_weekWrap"><table class="weekTable" id="t_weekTable"></table></div>
     <div class="slotGrid" id="t_slotGrid"></div>
 
     <div id="t_saveBar">
@@ -648,6 +637,12 @@
     return a.h + ':' + a.m + ' ' + a.ampm + '–' + b.h + ':' + b.m + ' ' + b.ampm;
   }
 
+  // 例:09:00 -> 9:00 AM(整週表格的時間欄只顯示開始時間)
+  function timeLabel12(hhmm) {
+    const a = to12(hhmm);
+    return a.h + ':' + a.m + ' ' + a.ampm;
+  }
+
   function callApi(action, params) {
     const payload = Object.assign({ action: action }, params || {});
     return fetch(GAS_EXEC_URL, {
@@ -727,7 +722,6 @@
     let template = []; // [{day, start, end, student}]
     let activeDay = 'Mon';
     let dirty = false;
-    let viewMode = 'week'; // 'week' = 整週表格(跟試算表一樣) / 'day' = 單日清單
 
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
     function hhmm(m) { return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
@@ -840,36 +834,13 @@
         });
     });
 
-    /**
-     * 依目前的檢視模式決定要畫「整週表格」還是「單日清單」。
-     * 兩種模式共用同一份 template 資料,切換不會遺失還沒存檔的變更。
-     */
     function renderAll() {
-      const weekOn = viewMode === 'week';
-      document.getElementById('t_viewWeekBtn').classList.toggle('active', weekOn);
-      document.getElementById('t_viewDayBtn').classList.toggle('active', !weekOn);
-      document.getElementById('t_weekWrap').style.display = weekOn ? 'block' : 'none';
-      document.getElementById('t_slotGrid').style.display = weekOn ? 'none' : 'grid';
-      document.getElementById('t_dayTabs').style.display = weekOn ? 'none' : 'flex';
-      if (weekOn) {
-        renderWeekGrid();
-      } else {
-        renderDayTabs();
-        renderSlotGrid();
-      }
+      renderDayTabs();
+      renderSlotGrid();
       updateSaveBar();
     }
 
-    document.getElementById('t_viewWeekBtn').addEventListener('click', function () {
-      viewMode = 'week';
-      renderAll();
-    });
-    document.getElementById('t_viewDayBtn').addEventListener('click', function () {
-      viewMode = 'day';
-      renderAll();
-    });
-
-    /** 點一格空堂/未排課的格子時的切換邏輯(整週表格與單日清單共用) */
+    /** 點一格空堂/未排課的格子時的切換邏輯 */
     function toggleSlot(day, startStr, endStr) {
       const slot = findSlot(day, startStr);
       if (slot && slot.student) {
@@ -884,49 +855,6 @@
       dirty = true;
       renderAll();
     }
-
-    /** 整週表格:直排是時間、橫排是星期一到星期日,跟 Google 試算表的呈現一致 */
-    function renderWeekGrid() {
-      const table = document.getElementById('t_weekTable');
-      let html = '<thead><tr><th class="timeHead">Time</th>';
-      DAY_KEYS.forEach(function (d) { html += '<th>' + d + '</th>'; });
-      html += '</tr></thead><tbody>';
-
-      slotList().forEach(function (m) {
-        const startStr = hhmm(m);
-        html += '<tr' + (m % 60 === 0 ? ' class="hourStart"' : '') + '>';
-        // 手機畫面窄,整週表格只顯示開始時間(每格固定 30 分鐘)
-        html += '<td class="timeCell">' + to12(hhmm(m)) + '</td>';
-        DAY_KEYS.forEach(function (d) {
-          const slot = findSlot(d, startStr);
-          let cls = 'cell empty';
-          let txt = '';
-          if (slot && slot.student) {
-            cls = 'cell booked';
-            txt = escapeHtml(slot.student);
-          } else if (slot) {
-            cls = 'cell open';
-            txt = 'Open';
-          }
-          html += '<td class="' + cls + '" data-day="' + d + '" data-start="' + startStr + '">' + txt + '</td>';
-        });
-        html += '</tr>';
-      });
-      table.innerHTML = html + '</tbody>';
-    }
-
-    // 表格每次重畫都會換掉裡面的格子,所以事件掛在表格本身,只掛一次
-    document.getElementById('t_weekTable').addEventListener('click', function (e) {
-      let td = e.target;
-      while (td && td !== this && td.tagName !== 'TD') td = td.parentNode;
-      if (!td || td === this || td.className.indexOf('cell') === -1) return;
-      const day = td.getAttribute('data-day');
-      const startStr = td.getAttribute('data-start');
-      if (!day || !startStr) return;
-      const parts = startStr.split(':');
-      const endMin = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10) + CONFIG.SLOT_MINUTES;
-      toggleSlot(day, startStr, hhmm(endMin));
-    });
 
     function renderDayTabs() {
       const wrap = document.getElementById('t_dayTabs');
@@ -1065,6 +993,11 @@
         timeDayCnt: function (n) { return n + ' 段'; },
         noOpenThisDay: '這一天目前沒有可以安排新學生的時段',
         noEmailWarning: '這位老師還沒填 email,目前是用「名字比對行事曆」,建議請他打開連結填一下 email 會更準確。',
+        timeCol: '時間',
+        gridOpen: '空堂',
+        legendBooked: '已有學生',
+        legendOpen: '空堂(可安排)',
+        legendNone: '未排課',
         colName: '姓名',
         colLineId: 'LINE ID',
         colEmail: 'Email',
@@ -1106,6 +1039,11 @@
         timeDayCnt: function (n) { return '' + n; },
         noOpenThisDay: 'No open time slots on this day',
         noEmailWarning: "This teacher hasn't entered an email yet, so their classes are matched by name. Ask them to open the link and fill it in for accurate matching.",
+        timeCol: 'Time',
+        gridOpen: 'Open',
+        legendBooked: 'Booked',
+        legendOpen: 'Open (bookable)',
+        legendNone: 'Not scheduled',
         colName: 'Name',
         colLineId: 'LINE ID',
         colEmail: 'Email',
@@ -1231,21 +1169,53 @@
         html += '<div class="warnBox">' + escapeHtml(t('noEmailWarning')) + '</div>';
       }
 
-      if (tc.openCount > 0) {
-        DAY_KEYS.forEach(function (k) {
-          const openSlots = tc.template
-            .filter(function (s) { return s.day === k && !s.student; })
-            .sort(function (a, b) { return a.start < b.start ? -1 : 1; });
-          if (openSlots.length === 0) return;
-          html += '<div class="openDayRow"><div class="dName">' + t('dayShort')[k] + '</div><div class="dChips">';
-          openSlots.forEach(function (s) {
-            html += '<span class="chip open">' + formatRange12(s.start, s.end) + '</span>';
-          });
-          html += '</div></div>';
-        });
-      }
+      html += '<div class="gridLegend">' +
+        '<span><i class="dot" style="background:#2e7dfa;"></i>' + escapeHtml(t('legendBooked')) + '</span>' +
+        '<span><i class="dot" style="background:#06C755;"></i>' + escapeHtml(t('legendOpen')) + '</span>' +
+        '<span><i class="dot" style="background:#fff;border:1px solid #ddd;"></i>' + escapeHtml(t('legendNone')) + '</span>' +
+        '</div>';
+      html += weekTableHtml(tc.template || []);
 
       panel.innerHTML = html;
+    }
+
+    /**
+     * 把一位老師的固定課表畫成「時間 x 星期」的表格,
+     * 呈現方式跟 Google 試算表的「課表-老師名」分頁一致:
+     *   藍底 = 已經有學生(格子裡是學生姓名)
+     *   綠底 = 空堂,可以安排新學生
+     *   白底 = 這個時段老師沒有排課
+     */
+    function weekTableHtml(template) {
+      const map = {};
+      template.forEach(function (s) { map[s.day + '|' + s.start] = s; });
+
+      let html = '<div class="weekWrap"><table class="weekTable"><thead><tr>';
+      html += '<th class="timeHead">' + escapeHtml(t('timeCol')) + '</th>';
+      DAY_KEYS.forEach(function (k) { html += '<th>' + escapeHtml(t('dayShort')[k]) + '</th>'; });
+      html += '</tr></thead><tbody>';
+
+      slotStartList().forEach(function (m) {
+        const startStr = minToHhmm(m);
+        html += '<tr' + (m % 60 === 0 ? ' class="hourStart"' : '') + '>';
+        // 手機畫面窄,只顯示開始時間(每一格固定是一個時段)
+        html += '<td class="timeCell">' + timeLabel12(startStr) + '</td>';
+        DAY_KEYS.forEach(function (k) {
+          const s = map[k + '|' + startStr];
+          let cls = 'cell empty';
+          let txt = '';
+          if (s && s.student) {
+            cls = 'cell booked';
+            txt = escapeHtml(s.student);
+          } else if (s) {
+            cls = 'cell open';
+            txt = escapeHtml(t('gridOpen'));
+          }
+          html += '<td class="' + cls + '">' + txt + '</td>';
+        });
+        html += '</tr>';
+      });
+      return html + '</tbody></table></div>';
     }
 
     // ---------------- 時段找老師(把同一份資料改用「時間」的角度切) ----------------
