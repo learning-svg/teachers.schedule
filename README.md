@@ -335,6 +335,45 @@
     margin-bottom: 14px;
   }
 
+  /* ---- 搜尋老師 ---- */
+  .searchRow { position: relative; margin-bottom: 10px; }
+  .searchRow input {
+    width: 100%;
+    padding: 10px 34px 10px 34px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fff;
+    font-family: inherit;
+  }
+  .searchRow input:focus { outline: none; border-color: #06C755; }
+  /* 關掉瀏覽器自己的清除圖示,避免跟下面的 × 按鈕重複 */
+  .searchRow input::-webkit-search-cancel-button { display: none; }
+  .searchRow .sIcon {
+    position: absolute;
+    left: 11px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    color: #aaa;
+    pointer-events: none;
+  }
+  .searchRow .sClear {
+    position: absolute;
+    right: 6px; top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: #e6e8ea;
+    color: #666;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    display: none;
+  }
+  .searchRow.hasText .sClear { display: block; }
+  .searchHint { font-size: 11px; color: #999; margin: -4px 0 8px; }
+
   /* ---- Open Slots: folder tabs ---- */
   .folderTabs {
     display: flex;
@@ -512,6 +551,12 @@
       </div>
       <div id="a_openStatus" style="text-align:center;color:#888;padding:24px;font-size:13px;"></div>
       <div id="a_openApp" style="display:none;">
+        <div class="searchRow" id="a_searchRow">
+          <span class="sIcon">🔍</span>
+          <input id="a_teacherSearch" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button class="sClear" id="a_searchClear" type="button">×</button>
+        </div>
+        <div class="searchHint" id="a_searchHint"></div>
         <div class="folderTabs" id="a_folderTabs"></div>
         <div class="folderPanel" id="a_folderPanel"></div>
       </div>
@@ -539,6 +584,11 @@
       <div class="adminToolbar">
         <button class="btn" id="a_teachersRefreshBtn"></button>
         <span id="a_teachersCount" style="font-size:11px;color:#999;"></span>
+      </div>
+      <div class="searchRow" id="a_rosterSearchRow">
+        <span class="sIcon">🔍</span>
+        <input id="a_rosterSearch" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="sClear" id="a_rosterSearchClear" type="button">×</button>
       </div>
       <div class="tableWrap">
         <table id="a_teachersTable"></table>
@@ -983,6 +1033,9 @@
         },
         folderCnt: function (n) { return n + ' 開放'; },
         noTeachersOpen: '目前還沒有老師設定固定課表',
+        searchPlaceholder: '搜尋老師姓名...',
+        searchNoMatch: function (q) { return '找不到名字包含「' + q + '」的老師'; },
+        searchCount: function (n, total) { return '顯示 ' + n + ' / ' + total + ' 位老師'; },
         timeTitle: function (d) { return d + ' 有空堂的時段'; },
         timeSub: function (n) {
           return n > 0
@@ -1029,6 +1082,9 @@
         },
         folderCnt: function (n) { return n + ' open'; },
         noTeachersOpen: 'No teacher has set up a weekly schedule yet',
+        searchPlaceholder: 'Search teacher name...',
+        searchNoMatch: function (q) { return 'No teacher matching "' + q + '"'; },
+        searchCount: function (n, total) { return 'Showing ' + n + ' of ' + total + ' teachers'; },
         timeTitle: function (d) { return 'Open time slots on ' + d; },
         timeSub: function (n) {
           return n > 0
@@ -1075,6 +1131,8 @@
       document.getElementById('a_tabTeachers').textContent = t('tabTeachers');
       document.getElementById('a_openRefreshBtn').textContent = t('refresh');
       document.getElementById('a_teachersRefreshBtn').textContent = t('refresh');
+      document.getElementById('a_teacherSearch').placeholder = t('searchPlaceholder');
+      document.getElementById('a_rosterSearch').placeholder = t('searchPlaceholder');
     }
 
     document.getElementById('a_langBtn').addEventListener('click', function () {
@@ -1108,6 +1166,48 @@
     document.getElementById('a_openRefreshBtn').addEventListener('click', function () { loadOpenSlots(true); });
     document.getElementById('a_teachersRefreshBtn').addEventListener('click', loadTeachers);
 
+    // ---------------- 搜尋老師 ----------------
+    let teacherQuery = '';   // 老師空堂分頁的搜尋字串
+    let rosterQuery = '';    // 老師名單分頁的搜尋字串
+
+    /** 名字有沒有包含搜尋字串(不分大小寫、前後空白不計) */
+    function nameMatches(name, q) {
+      if (!q) return true;
+      return String(name || '').toLowerCase().indexOf(q) !== -1;
+    }
+
+    /** 依搜尋字串篩選後的老師清單 */
+    function filteredOverview() {
+      return (lastTeachersOverview || []).filter(function (tc) {
+        return nameMatches(tc.name, teacherQuery);
+      });
+    }
+
+    function bindSearchBox(inputId, clearId, rowId, onChange) {
+      const input = document.getElementById(inputId);
+      const row = document.getElementById(rowId);
+      const apply = function () {
+        row.classList.toggle('hasText', !!input.value);
+        onChange(input.value.trim().toLowerCase());
+      };
+      input.addEventListener('input', apply);
+      document.getElementById(clearId).addEventListener('click', function () {
+        input.value = '';
+        apply();
+        input.focus();
+      });
+    }
+
+    bindSearchBox('a_teacherSearch', 'a_searchClear', 'a_searchRow', function (q) {
+      teacherQuery = q;
+      renderFolderTabs();
+      renderFolderPanel();
+    });
+    bindSearchBox('a_rosterSearch', 'a_rosterSearchClear', 'a_rosterSearchRow', function (q) {
+      rosterQuery = q;
+      if (lastRoster) renderTeachers(lastRoster);
+    });
+
     // ---------------- Open Slots (folder tabs per teacher) ----------------
     function loadOpenSlots(force) {
       document.getElementById('a_openStatus').style.display = 'block';
@@ -1139,12 +1239,32 @@
 
     function renderFolderTabs() {
       const wrap = document.getElementById('a_folderTabs');
+      const hint = document.getElementById('a_searchHint');
       wrap.innerHTML = '';
-      if (!lastTeachersOverview || !lastTeachersOverview.length) {
+      hint.textContent = '';
+
+      const all = lastTeachersOverview || [];
+      if (!all.length) {
         wrap.innerHTML = '<div class="empty" style="padding:10px 4px;">' + t('noTeachersOpen') + '</div>';
         return;
       }
-      lastTeachersOverview.forEach(function (tc) {
+
+      const list = filteredOverview();
+      // 有在搜尋時,顯示「顯示 N / 共 M 位老師」讓人知道還有被篩掉的
+      if (teacherQuery) hint.textContent = t('searchCount')(list.length, all.length);
+
+      if (!list.length) {
+        wrap.innerHTML = '<div class="empty" style="padding:10px 4px;">' +
+          escapeHtml(t('searchNoMatch')(teacherQuery)) + '</div>';
+        return;
+      }
+
+      // 目前選到的老師被搜尋條件篩掉時,自動改選第一個符合的
+      const stillThere = list.some(function (tc) { return tc.lineUserId === activeTeacherId; });
+      if (!stillThere) activeTeacherId = list[0].lineUserId;
+
+      let activeTab = null;
+      list.forEach(function (tc) {
         const tab = document.createElement('div');
         tab.className = 'folderTab' + (tc.lineUserId === activeTeacherId ? ' active' : '');
         tab.innerHTML = escapeHtml(tc.name) + '<span class="cnt">' + t('folderCnt')(tc.openCount) + '</span>';
@@ -1153,8 +1273,14 @@
           renderFolderTabs();
           renderFolderPanel();
         });
+        if (tc.lineUserId === activeTeacherId) activeTab = tab;
         wrap.appendChild(tab);
       });
+
+      // 老師很多時,把選到的那個標籤捲進畫面內
+      if (activeTab && activeTab.scrollIntoView) {
+        try { activeTab.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) {}
+      }
     }
 
     function renderFolderPanel() {
@@ -1326,14 +1452,20 @@
         });
     }
 
-    function renderTeachers(teachers) {
-      document.getElementById('a_teachersCount').textContent = t('teachersCount')(teachers.length);
+    function renderTeachers(allTeachers) {
+      const teachers = (allTeachers || []).filter(function (tc) {
+        return nameMatches(tc.name, rosterQuery);
+      });
+      document.getElementById('a_teachersCount').textContent = rosterQuery
+        ? t('searchCount')(teachers.length, (allTeachers || []).length)
+        : t('teachersCount')(teachers.length);
       const table = document.getElementById('a_teachersTable');
       let html = '<tr><th>' + t('colName') + '</th><th>' + t('colLineId') + '</th><th>' +
         t('colEmail') + '</th><th>' +
         t('colKeyword') + '</th><th>' + t('colFirstSeen') + '</th><th>' + t('colLastUpdated') + '</th></tr>';
       if (teachers.length === 0) {
-        html += '<tr><td colspan="6" class="empty">' + t('noTeachersRoster') + '</td></tr>';
+        html += '<tr><td colspan="6" class="empty">' +
+          escapeHtml(rosterQuery ? t('searchNoMatch')(rosterQuery) : t('noTeachersRoster')) + '</td></tr>';
       }
       table.innerHTML = html;
       teachers.forEach(function (tc) {
